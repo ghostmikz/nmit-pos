@@ -1,0 +1,11 @@
+# Compiled output
+out/
+pos-client/out/
+pos-server/out/
+*.class
+
+# IntelliJ IDEA workspace (keep .iml, ignore workspace state)
+.idea/
+
+# macOS
+.DS_Store
