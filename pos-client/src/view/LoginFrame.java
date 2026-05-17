@@ -5,24 +5,31 @@ import com.google.gson.JsonObject;
 import i18n.I18n;
 import i18n.LanguageListener;
 import model.User;
-import util.AppSettings;
 
 import javax.swing.*;
-import javax.swing.border.*;
+import javax.swing.border.EmptyBorder;
 import java.awt.*;
+import java.awt.geom.RoundRectangle2D;
 import java.util.HashMap;
 import java.util.Map;
 
 public class LoginFrame extends JFrame implements LanguageListener {
 
+    private static final Color BRAND    = new Color(0x9b2a2a);
+    private static final Color BRAND_DK = new Color(0x7a1f1f);
+    private static final Color INK      = new Color(0x1a1a1a);
+    private static final Color INK_2    = new Color(0x4a4a4a);
+    private static final Color MUTED    = new Color(0x9a9a9a);
+    private static final Color LINE     = new Color(0xececec);
+    private static final Color BG_IN    = new Color(0xfafafa);
+
+    private static final int SHADOW_X = 8;
+    private static final int SHADOW_Y = 16;
+
     private JTextField     usernameField;
     private JPasswordField passwordField;
     private JLabel         errorLabel;
     private JButton        loginBtn;
-    private JLabel         titleLabel;
-    private JLabel         subtitleLabel;
-    private JLabel         userLabel;
-    private JLabel         passLabel;
 
     public LoginFrame() {
         setTitle(I18n.t("app.title"));
@@ -36,172 +43,299 @@ public class LoginFrame extends JFrame implements LanguageListener {
     @Override
     public void onLanguageChanged() {
         setTitle(I18n.t("app.title"));
-        titleLabel.setText(I18n.t("login.title"));
-        userLabel.setText(I18n.t("login.username"));
-        passLabel.setText(I18n.t("login.password"));
-        loginBtn.setText(I18n.t("login.button"));
         errorLabel.setText(" ");
-        refreshSubtitle();
     }
 
-    private void refreshSubtitle() {
-        boolean mn = "mn".equals(AppSettings.getLanguage());
-        subtitleLabel.setText(mn
-                ? "Системд нэвтрэхийн тулд мэдээллээ оруулна уу"
-                : "Enter your credentials to access the system");
-    }
-
-    // ── Layout ────────────────────────────────────────────────────────────────
+    // ── Root ──────────────────────────────────────────────────────────────────
 
     private JPanel buildUI() {
-        JPanel root = new JPanel(new BorderLayout());
-        root.add(buildLeftPanel(),  BorderLayout.WEST);
-        root.add(buildRightPanel(), BorderLayout.CENTER);
-        return root;
-    }
-
-    // Dark branded panel — left 40 %
-    private JPanel buildLeftPanel() {
-        JPanel left = new JPanel(new GridBagLayout()) {
+        // Full-screen red gradient
+        JPanel root = new JPanel(new GridBagLayout()) {
             @Override protected void paintComponent(Graphics g) {
                 super.paintComponent(g);
                 Graphics2D g2 = (Graphics2D) g.create();
-                g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
                 g2.setPaint(new GradientPaint(
-                        0, 0,          new Color(0x1E293B),
-                        0, getHeight(), new Color(0x0F172A)));
+                        0, 0,                     new Color(0xa83333),
+                        getWidth(), getHeight(),   BRAND_DK));
                 g2.fillRect(0, 0, getWidth(), getHeight());
                 g2.dispose();
             }
         };
-        left.setPreferredSize(new Dimension(460, 0));
-        left.setBackground(new Color(0x1E293B));
 
-        JPanel inner = new JPanel();
-        inner.setLayout(new BoxLayout(inner, BoxLayout.Y_AXIS));
-        inner.setOpaque(false);
+        GridBagConstraints c = new GridBagConstraints();
+        c.fill    = GridBagConstraints.BOTH;
+        c.weighty = 1.0;
 
-        // Blue accent block behind "POS"
-        JPanel logoBlock = new JPanel(new FlowLayout(FlowLayout.LEFT, 0, 0));
-        logoBlock.setOpaque(false);
-        JLabel logoLbl = new JLabel("  POS  ");
-        logoLbl.setFont(new Font("Dialog", Font.BOLD, 16));
-        logoLbl.setForeground(Color.WHITE);
-        logoLbl.setOpaque(true);
-        logoLbl.setBackground(new Color(0x2563EB));
-        logoLbl.setBorder(new EmptyBorder(8, 4, 8, 4));
-        logoBlock.add(logoLbl);
-        logoBlock.setAlignmentX(LEFT_ALIGNMENT);
+        c.gridx = 0; c.weightx = 1.2;
+        root.add(buildLeftPanel(), c);
 
-        JLabel appName = new JLabel("NMIT");
-        appName.setFont(new Font("Dialog", Font.BOLD, 58));
-        appName.setForeground(Color.WHITE);
-        appName.setAlignmentX(LEFT_ALIGNMENT);
+        c.gridx = 1; c.weightx = 1.0;
+        root.add(buildRightPanel(), c);
 
-        JLabel tagLine = new JLabel("Кассын удирдлагын систем");
-        tagLine.setFont(new Font("Dialog", Font.PLAIN, 20));
-        tagLine.setForeground(new Color(0x94A3B8));
-        tagLine.setAlignmentX(LEFT_ALIGNMENT);
+        return root;
+    }
 
-        JSeparator sep = new JSeparator();
-        sep.setForeground(new Color(0x334155));
-        sep.setMaximumSize(new Dimension(320, 1));
-        sep.setAlignmentX(LEFT_ALIGNMENT);
+    // ── Left panel ────────────────────────────────────────────────────────────
 
-        JLabel versionLbl = new JLabel("v1.0  —  2025");
-        versionLbl.setFont(new Font("Dialog", Font.PLAIN, 13));
-        versionLbl.setForeground(new Color(0x475569));
-        versionLbl.setAlignmentX(LEFT_ALIGNMENT);
+    private JPanel buildLeftPanel() {
+        JPanel left = new JPanel(new BorderLayout());
+        left.setOpaque(false);
+        left.setBorder(new EmptyBorder(56, 64, 56, 64));
 
-        inner.add(logoBlock);
-        inner.add(Box.createVerticalStrut(20));
-        inner.add(appName);
-        inner.add(Box.createVerticalStrut(10));
-        inner.add(tagLine);
-        inner.add(Box.createVerticalStrut(36));
-        inner.add(sep);
-        inner.add(Box.createVerticalStrut(20));
-        inner.add(versionLbl);
+        // Brand row
+        JPanel brand = new JPanel(new FlowLayout(FlowLayout.LEFT, 0, 0));
+        brand.setOpaque(false);
+        brand.add(waveformIcon());
+        brand.add(Box.createHorizontalStrut(12));
+        JLabel name = new JLabel("MIT");
+        name.setFont(new Font("Dialog", Font.BOLD, 26));
+        name.setForeground(Color.WHITE);
+        brand.add(name);
 
-        left.add(inner);
+        // Headline + subline, vertically centered
+        JPanel center = new JPanel();
+        center.setLayout(new BoxLayout(center, BoxLayout.Y_AXIS));
+        center.setOpaque(false);
+
+        JLabel headline = new JLabel(
+                "<html><div style='width:460px'>" +
+                "Ухаалаг жижиглэн худалдааны POS систем</div></html>");
+        headline.setFont(new Font("Dialog", Font.BOLD, 44));
+        headline.setForeground(Color.WHITE);
+        headline.setAlignmentX(LEFT_ALIGNMENT);
+
+        JLabel subline = new JLabel(
+                "<html><div style='width:420px'>" +
+                "Борлуулалт, бараа материал, ажилтны бүртгэлийг нэг газраас удирдаарай.</div></html>");
+        subline.setFont(new Font("Dialog", Font.PLAIN, 16));
+        subline.setForeground(new Color(255, 255, 255, 190));
+        subline.setAlignmentX(LEFT_ALIGNMENT);
+
+        center.add(Box.createVerticalGlue());
+        center.add(headline);
+        center.add(Box.createVerticalStrut(18));
+        center.add(subline);
+        center.add(Box.createVerticalGlue());
+
+        left.add(brand,  BorderLayout.NORTH);
+        left.add(center, BorderLayout.CENTER);
         return left;
     }
 
-    // Light form panel — right 60 %
+    // SVG waveform icon: M4 30 V8 L12 18 L18 10 L24 18 L32 8 V30 (36x36 canvas → 32x32)
+    private JComponent waveformIcon() {
+        return new JComponent() {
+            { setPreferredSize(new Dimension(32, 32)); }
+            @Override protected void paintComponent(Graphics g) {
+                Graphics2D g2 = (Graphics2D) g.create();
+                g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+                g2.setColor(Color.WHITE);
+                g2.setStroke(new BasicStroke(2.2f, BasicStroke.CAP_ROUND, BasicStroke.JOIN_ROUND));
+                float s = 32f / 36f;
+                int[] sx = {4, 4, 12, 18, 24, 32, 32};
+                int[] sy = {30, 8, 18, 10, 18,  8, 30};
+                int[] dx = new int[sx.length], dy = new int[sy.length];
+                for (int i = 0; i < sx.length; i++) {
+                    dx[i] = Math.round(sx[i] * s);
+                    dy[i] = Math.round(sy[i] * s);
+                }
+                g2.drawPolyline(dx, dy, dx.length);
+                g2.dispose();
+            }
+        };
+    }
+
+    // ── Right panel (card) ────────────────────────────────────────────────────
+
     private JPanel buildRightPanel() {
         JPanel right = new JPanel(new GridBagLayout());
-        right.setBackground(new Color(0xF8FAFC));
+        right.setOpaque(false);
+        right.setBorder(new EmptyBorder(56, 56, 56, 56));
+        right.add(buildCard());
+        return right;
+    }
 
-        JPanel form = new JPanel();
-        form.setLayout(new BoxLayout(form, BoxLayout.Y_AXIS));
-        form.setOpaque(false);
-        form.setMaximumSize(new Dimension(460, Integer.MAX_VALUE));
-        form.setPreferredSize(new Dimension(460, 600));
+    private JPanel buildCard() {
+        // Shadow wrapper: paints drop-shadow then white rounded rect
+        JPanel card = new JPanel() {
+            @Override protected void paintComponent(Graphics g) {
+                Graphics2D g2 = (Graphics2D) g.create();
+                g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+                int w = getWidth() - SHADOW_X, h = getHeight() - SHADOW_Y;
+                // Layered shadow
+                for (int i = SHADOW_Y; i > 0; i--) {
+                    int alpha = (int)(45.0 * (SHADOW_Y - i + 1) / SHADOW_Y);
+                    g2.setColor(new Color(0, 0, 0, alpha));
+                    g2.fill(new RoundRectangle2D.Float(
+                            SHADOW_X * (1 - (float)i / SHADOW_Y),
+                            SHADOW_Y * (1 - (float)i / SHADOW_Y),
+                            w, h, 22, 22));
+                }
+                // White card
+                g2.setColor(Color.WHITE);
+                g2.fill(new RoundRectangle2D.Float(0, 0, w, h, 18, 18));
+                g2.dispose();
+            }
+        };
+        card.setLayout(new BoxLayout(card, BoxLayout.Y_AXIS));
+        card.setOpaque(false);
+        card.setBorder(new EmptyBorder(40, 36, 36 + SHADOW_Y, 36 + SHADOW_X));
+        card.setPreferredSize(new Dimension(420 + SHADOW_X, 0));
+        card.setMaximumSize(new Dimension(420 + SHADOW_X, Integer.MAX_VALUE));
 
-        // Top row: title + settings gear
-        JPanel topRow = new JPanel(new BorderLayout());
-        topRow.setOpaque(false);
-        topRow.setMaximumSize(new Dimension(Integer.MAX_VALUE, 60));
+        // Greeting
+        JLabel greet = new JLabel("Тавтай морил");
+        greet.setFont(new Font("Dialog", Font.BOLD, 26));
+        greet.setForeground(INK);
+        greet.setAlignmentX(LEFT_ALIGNMENT);
 
-        titleLabel = new JLabel(I18n.t("login.title"));
-        titleLabel.setFont(new Font("Dialog", Font.BOLD, 38));
-        titleLabel.setForeground(new Color(0x0F172A));
+        JLabel sub = new JLabel("Үргэлжлүүлэхийн тулд бүртгэлээрээ нэвтэрнэ үү");
+        sub.setFont(new Font("Dialog", Font.PLAIN, 13));
+        sub.setForeground(MUTED);
+        sub.setAlignmentX(LEFT_ALIGNMENT);
 
-        JButton settingsBtn = iconBtn("⚙");
-        settingsBtn.setToolTipText("Тохиргоо / Settings");
-        settingsBtn.addActionListener(e -> new SettingsDialog(this).setVisible(true));
-
-        topRow.add(titleLabel,  BorderLayout.WEST);
-        topRow.add(settingsBtn, BorderLayout.EAST);
-
-        subtitleLabel = new JLabel();
-        subtitleLabel.setFont(new Font("Dialog", Font.PLAIN, 15));
-        subtitleLabel.setForeground(new Color(0x64748B));
-        subtitleLabel.setAlignmentX(LEFT_ALIGNMENT);
-        refreshSubtitle();
-
-        userLabel = fieldLabel(I18n.t("login.username"));
-        passLabel = fieldLabel(I18n.t("login.password"));
-
-        usernameField = styledTextField();
+        usernameField = new JTextField();
         passwordField = new JPasswordField();
-        styleField(passwordField);
         passwordField.addActionListener(e -> doLogin());
 
         errorLabel = new JLabel(" ");
         errorLabel.setForeground(new Color(0xDC2626));
-        errorLabel.setFont(new Font("Dialog", Font.PLAIN, 14));
+        errorLabel.setFont(new Font("Dialog", Font.PLAIN, 13));
         errorLabel.setAlignmentX(LEFT_ALIGNMENT);
 
-        loginBtn = new JButton(I18n.t("login.button"));
-        loginBtn.setFont(new Font("Dialog", Font.BOLD, 18));
-        loginBtn.setForeground(Color.WHITE);
-        loginBtn.setBackground(new Color(0x2563EB));
-        loginBtn.setBorderPainted(false);
-        loginBtn.setFocusPainted(false);
-        loginBtn.setPreferredSize(new Dimension(460, 56));
-        loginBtn.setMaximumSize(new Dimension(Integer.MAX_VALUE, 56));
-        loginBtn.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
+        loginBtn = redButton("Нэвтрэх");
         loginBtn.addActionListener(e -> doLogin());
 
-        form.add(topRow);
-        form.add(Box.createVerticalStrut(6));
-        form.add(subtitleLabel);
-        form.add(Box.createVerticalStrut(48));
-        form.add(userLabel);
-        form.add(Box.createVerticalStrut(8));
-        form.add(usernameField);
-        form.add(Box.createVerticalStrut(24));
-        form.add(passLabel);
-        form.add(Box.createVerticalStrut(8));
-        form.add(passwordField);
-        form.add(Box.createVerticalStrut(8));
-        form.add(errorLabel);
-        form.add(Box.createVerticalStrut(28));
-        form.add(loginBtn);
+        card.add(greet);
+        card.add(Box.createVerticalStrut(6));
+        card.add(sub);
+        card.add(Box.createVerticalStrut(26));
+        card.add(fieldLabel("Ажилчны код"));
+        card.add(Box.createVerticalStrut(8));
+        card.add(iconField(usernameField, Icon.USER, false));
+        card.add(Box.createVerticalStrut(16));
+        card.add(fieldLabel("Нууц үг"));
+        card.add(Box.createVerticalStrut(8));
+        card.add(iconField(passwordField, Icon.LOCK, true));
+        card.add(Box.createVerticalStrut(4));
+        card.add(errorLabel);
+        card.add(Box.createVerticalStrut(10));
+        card.add(loginBtn);
 
-        right.add(form);
-        return right;
+        return card;
+    }
+
+    // ── Field helpers ─────────────────────────────────────────────────────────
+
+    private enum Icon { USER, LOCK }
+
+    private JLabel fieldLabel(String text) {
+        JLabel l = new JLabel(text);
+        l.setFont(new Font("Dialog", Font.BOLD, 13));
+        l.setForeground(INK_2);
+        l.setAlignmentX(LEFT_ALIGNMENT);
+        return l;
+    }
+
+    private JPanel iconField(JTextField field, Icon icon, boolean showEye) {
+        JPanel wrap = new JPanel(new BorderLayout()) {
+            @Override protected void paintComponent(Graphics g) {
+                Graphics2D g2 = (Graphics2D) g.create();
+                g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+                g2.setColor(BG_IN);
+                g2.fill(new RoundRectangle2D.Float(0, 0, getWidth(), getHeight(), 10, 10));
+                g2.setColor(LINE);
+                g2.draw(new RoundRectangle2D.Float(0.5f, 0.5f, getWidth() - 1, getHeight() - 1, 10, 10));
+                g2.dispose();
+            }
+        };
+        wrap.setOpaque(false);
+        wrap.setPreferredSize(new Dimension(380, 48));
+        wrap.setMaximumSize(new Dimension(Integer.MAX_VALUE, 48));
+        wrap.setAlignmentX(LEFT_ALIGNMENT);
+        wrap.setBorder(new EmptyBorder(0, 14, 0, 14));
+
+        wrap.add(iconComp(icon), BorderLayout.WEST);
+
+        field.setOpaque(false);
+        field.setBorder(new EmptyBorder(0, 10, 0, 0));
+        field.setFont(new Font("Dialog", Font.PLAIN, 15));
+        field.setForeground(INK);
+        wrap.add(field, BorderLayout.CENTER);
+
+        if (showEye) wrap.add(eyeComp(), BorderLayout.EAST);
+
+        return wrap;
+    }
+
+    // Envelope icon (USER) or lock icon (LOCK), drawn with Graphics2D
+    private JComponent iconComp(Icon icon) {
+        return new JComponent() {
+            { setPreferredSize(new Dimension(20, 20)); }
+            @Override protected void paintComponent(Graphics g) {
+                Graphics2D g2 = (Graphics2D) g.create();
+                g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+                g2.setColor(MUTED);
+                g2.setStroke(new BasicStroke(1.6f, BasicStroke.CAP_ROUND, BasicStroke.JOIN_ROUND));
+                int w = getWidth(), h = getHeight();
+                if (icon == Icon.USER) {
+                    // Envelope rect
+                    g2.drawRoundRect(1, 3, w - 2, h - 5, 2, 2);
+                    // V-fold lines from top corners to center
+                    g2.drawLine(1, 3, w / 2, h / 2 + 1);
+                    g2.drawLine(w - 1, 3, w / 2, h / 2 + 1);
+                } else {
+                    // Lock body
+                    g2.drawRoundRect(3, h / 2, w - 6, h / 2 - 2, 3, 3);
+                    // Shackle (arc)
+                    g2.drawArc(4, 2, w - 8, h / 2, 0, 180);
+                }
+                g2.dispose();
+            }
+        };
+    }
+
+    // Eye icon
+    private JComponent eyeComp() {
+        return new JComponent() {
+            { setPreferredSize(new Dimension(20, 20)); }
+            @Override protected void paintComponent(Graphics g) {
+                Graphics2D g2 = (Graphics2D) g.create();
+                g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+                g2.setColor(MUTED);
+                g2.setStroke(new BasicStroke(1.6f, BasicStroke.CAP_ROUND, BasicStroke.JOIN_ROUND));
+                int cx = getWidth() / 2, cy = getHeight() / 2;
+                g2.drawArc(1, cy - 5, getWidth() - 2, 10, 0, 180);
+                g2.drawArc(1, cy - 5, getWidth() - 2, 10, 180, 180);
+                g2.drawOval(cx - 3, cy - 3, 6, 6);
+                g2.dispose();
+            }
+        };
+    }
+
+    // Red rounded login button
+    private JButton redButton(String text) {
+        JButton btn = new JButton(text) {
+            @Override protected void paintComponent(Graphics g) {
+                Graphics2D g2 = (Graphics2D) g.create();
+                g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+                g2.setColor(isEnabled() ? BRAND : new Color(0xc47070));
+                g2.fill(new RoundRectangle2D.Float(0, 0, getWidth(), getHeight(), 10, 10));
+                g2.dispose();
+                super.paintComponent(g);
+            }
+        };
+        btn.setFont(new Font("Dialog", Font.BOLD, 15));
+        btn.setForeground(Color.WHITE);
+        btn.setContentAreaFilled(false);
+        btn.setBorderPainted(false);
+        btn.setFocusPainted(false);
+        btn.setOpaque(false);
+        btn.setPreferredSize(new Dimension(380, 50));
+        btn.setMaximumSize(new Dimension(Integer.MAX_VALUE, 50));
+        btn.setAlignmentX(LEFT_ALIGNMENT);
+        btn.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
+        return btn;
     }
 
     // ── Login logic ───────────────────────────────────────────────────────────
@@ -230,7 +364,7 @@ public class LoginFrame extends JFrame implements LanguageListener {
 
             @Override protected void done() {
                 loginBtn.setEnabled(true);
-                loginBtn.setText(I18n.t("login.button"));
+                loginBtn.setText("Нэвтрэх");
                 try {
                     JsonObject res = get();
                     if ("OK".equals(res.get("status").getAsString())) {
@@ -255,47 +389,9 @@ public class LoginFrame extends JFrame implements LanguageListener {
         worker.execute();
     }
 
-    // ── Helpers ───────────────────────────────────────────────────────────────
-
-    private JLabel fieldLabel(String text) {
-        JLabel l = new JLabel(text);
-        l.setFont(new Font("Dialog", Font.BOLD, 15));
-        l.setForeground(new Color(0x374151));
-        l.setAlignmentX(LEFT_ALIGNMENT);
-        return l;
-    }
-
-    private JTextField styledTextField() {
-        JTextField f = new JTextField();
-        styleField(f);
-        return f;
-    }
-
-    private void styleField(JTextField f) {
-        f.setFont(new Font("Dialog", Font.PLAIN, 17));
-        f.setPreferredSize(new Dimension(460, 52));
-        f.setMaximumSize(new Dimension(Integer.MAX_VALUE, 52));
-        f.setBorder(new CompoundBorder(
-                new LineBorder(new Color(0xCDD5E0), 1),
-                new EmptyBorder(10, 14, 10, 14)
-        ));
-    }
-
-    private JButton iconBtn(String icon) {
-        JButton b = new JButton(icon);
-        b.setFont(new Font("Dialog", Font.PLAIN, 24));
-        b.setForeground(new Color(0x6B7280));
-        b.setBorderPainted(false);
-        b.setContentAreaFilled(false);
-        b.setFocusPainted(false);
-        b.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
-        return b;
-    }
-
     // ── Entry point ───────────────────────────────────────────────────────────
 
     public static void main(String[] args) {
-        // Font antialiasing — fixes blurry/thin text under XWayland and HiDPI displays
         System.setProperty("awt.useSystemAAFontSettings", "lcd");
         System.setProperty("swing.aatext", "true");
         System.setProperty("sun.java2d.xrender", "true");
