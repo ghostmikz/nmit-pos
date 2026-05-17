@@ -1,6 +1,7 @@
 package handler;
 
 import dao.UserDAO;
+import org.mindrot.jbcrypt.BCrypt;
 import model.Request;
 import model.Response;
 import model.User;
@@ -23,8 +24,7 @@ public class LoginHandler {
 
             if (user == null) return Response.error("Хэрэглэгч олдсонгүй");
 
-            // TODO: replace with BCrypt.checkpw(password, user.getPasswordHash()) when ready
-            if (!user.getPasswordHash().equals(password)) return Response.error("Нууц үг буруу");
+            if (!BCrypt.checkpw(password, user.getPasswordHash())) return Response.error("Нууц үг буруу");
 
             String token = SessionManager.createSession(user);
 

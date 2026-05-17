@@ -8,10 +8,9 @@ import java.util.List;
 public class UserDAO {
 
     public User findByUsername(String username) throws SQLException {
-        String sql = "SELECT id, username, password_hash, full_name, role, is_active FROM users WHERE username = ? AND is_active = 1";
-        try (PreparedStatement ps = DatabaseConnection.getInstance().prepareStatement(sql)) {
-            ps.setString(1, username);
-            ResultSet rs = ps.executeQuery();
+        try (CallableStatement cs = DatabaseConnection.getInstance().prepareCall("{CALL sp_login(?)}")) {
+            cs.setString(1, username);
+            ResultSet rs = cs.executeQuery();
             if (rs.next()) return mapRow(rs);
         }
         return null;
