@@ -37,7 +37,7 @@ if [ $? -eq 0 ]; then
     "$JAVA" \
         -Dawt.useSystemAAFontSettings=lcd \
         -Dswing.aatext=true \
-        -cp "$OUT:$LIBS" view.LoginFrame
+        -cp "$OUT:$LIBS" App
 else
     echo "Compilation failed."
 fi

@@ -468,18 +468,4 @@ public class LoginFrame extends JFrame implements LanguageListener {
                                   new String(passwordField.getPassword()));
     }
 
-    // ── Entry point ───────────────────────────────────────────────────────────
-
-    public static void main(String[] args) {
-        System.setProperty("awt.useSystemAAFontSettings", "lcd");
-        System.setProperty("swing.aatext", "true");
-        System.setProperty("sun.java2d.xrender", "true");
-        SwingUtilities.invokeLater(() -> {
-            try { UIManager.setLookAndFeel(UIManager.getCrossPlatformLookAndFeelClassName()); }
-            catch (Exception ignored) {}
-            LoginFrame frame = new LoginFrame();
-            new controller.LoginController(frame);
-            frame.setVisible(true);
-        });
-    }
 }
