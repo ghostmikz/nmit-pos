@@ -1,10 +1,7 @@
 package view;
 
-import client.SocketClient;
-import com.google.gson.JsonObject;
 import i18n.I18n;
 import i18n.LanguageListener;
-import model.User;
 
 import javax.imageio.ImageIO;
 import javax.swing.*;
@@ -14,8 +11,6 @@ import java.awt.geom.AffineTransform;
 import java.awt.geom.RoundRectangle2D;
 import java.awt.image.BufferedImage;
 import java.net.URL;
-import java.util.HashMap;
-import java.util.Map;
 
 public class LoginFrame extends JFrame implements LanguageListener {
 
@@ -114,11 +109,17 @@ public class LoginFrame extends JFrame implements LanguageListener {
         return out;
     }
 
+    @FunctionalInterface
+    public interface LoginListener {
+        void onLogin(String username, String password);
+    }
+
     // ── Fields ────────────────────────────────────────────────────────────────
     private JTextField     usernameField;
     private JPasswordField passwordField;
     private JLabel         errorLabel;
     private JButton        loginBtn;
+    private LoginListener  loginListener;
 
     public LoginFrame() {
         setTitle(I18n.t("app.title"));
@@ -309,9 +310,9 @@ public class LoginFrame extends JFrame implements LanguageListener {
         sub.setAlignmentX(LEFT_ALIGNMENT);
 
         usernameField = new JTextField();
-        usernameField.addActionListener(e -> doLogin());
+        usernameField.addActionListener(e -> fireLogin());
         passwordField = new JPasswordField();
-        passwordField.addActionListener(e -> doLogin());
+        passwordField.addActionListener(e -> fireLogin());
 
         errorLabel = new JLabel(" ");
         errorLabel.setForeground(new Color(0xDC2626));
@@ -319,13 +320,13 @@ public class LoginFrame extends JFrame implements LanguageListener {
         errorLabel.setAlignmentX(LEFT_ALIGNMENT);
 
         loginBtn = redButton("Нэвтрэх");
-        loginBtn.addActionListener(e -> doLogin());
+        loginBtn.addActionListener(e -> fireLogin());
 
         card.add(greet);
         card.add(Box.createVerticalStrut(6));
         card.add(sub);
         card.add(Box.createVerticalStrut(26));
-        card.add(fieldLabel("Ажилчны код"));
+        card.add(fieldLabel("Ажилтны код"));
         card.add(Box.createVerticalStrut(8));
         card.add(inputRow(usernameField, IC_USER, false));
         card.add(Box.createVerticalStrut(16));
@@ -441,52 +442,30 @@ public class LoginFrame extends JFrame implements LanguageListener {
         return btn;
     }
 
-    // ── Login logic ───────────────────────────────────────────────────────────
+    // ── Public view API (called by LoginController) ───────────────────────────
 
-    private void doLogin() {
-        String username = usernameField.getText().trim();
-        String password = new String(passwordField.getPassword());
+    public void setLoginListener(LoginListener listener) {
+        this.loginListener = listener;
+    }
 
-        if (username.isEmpty() || password.isEmpty()) {
-            errorLabel.setText(I18n.t("login.error.empty"));
-            return;
-        }
-        loginBtn.setEnabled(false);
-        loginBtn.setText(I18n.t("common.loading"));
+    public void setLoading(boolean loading) {
+        loginBtn.setEnabled(!loading);
+        loginBtn.setText(loading ? I18n.t("common.loading") : "Нэвтрэх");
+    }
 
-        new SwingWorker<JsonObject, Void>() {
-            @Override protected JsonObject doInBackground() throws Exception {
-                if (!SocketClient.getInstance().isConnected())
-                    SocketClient.getInstance().connect();
-                Map<String, String> data = new HashMap<>();
-                data.put("username", username);
-                data.put("password", password);
-                return SocketClient.getInstance().send("LOGIN", null, data);
-            }
-            @Override protected void done() {
-                loginBtn.setEnabled(true);
-                loginBtn.setText("Нэвтрэх");
-                try {
-                    JsonObject res = get();
-                    if ("OK".equals(res.get("status").getAsString())) {
-                        JsonObject d = res.getAsJsonObject("data");
-                        User user = new User();
-                        user.setId(d.get("id").getAsInt());
-                        user.setUsername(d.get("username").getAsString());
-                        user.setFullName(d.get("fullName").getAsString());
-                        user.setRole(d.get("role").getAsString());
-                        user.setToken(d.get("token").getAsString());
-                        I18n.removeListener(LoginFrame.this);
-                        dispose();
-                        new MainFrame(user).setVisible(true);
-                    } else {
-                        errorLabel.setText(res.get("message").getAsString());
-                    }
-                } catch (Exception ex) {
-                    errorLabel.setText("Серверт холбогдож чадсангүй");
-                }
-            }
-        }.execute();
+    public void showError(String msg) {
+        errorLabel.setText(msg);
+    }
+
+    public void close() {
+        I18n.removeListener(this);
+        dispose();
+    }
+
+    private void fireLogin() {
+        if (loginListener != null)
+            loginListener.onLogin(usernameField.getText().trim(),
+                                  new String(passwordField.getPassword()));
     }
 
     // ── Entry point ───────────────────────────────────────────────────────────
@@ -498,7 +477,9 @@ public class LoginFrame extends JFrame implements LanguageListener {
         SwingUtilities.invokeLater(() -> {
             try { UIManager.setLookAndFeel(UIManager.getCrossPlatformLookAndFeelClassName()); }
             catch (Exception ignored) {}
-            new LoginFrame().setVisible(true);
+            LoginFrame frame = new LoginFrame();
+            new controller.LoginController(frame);
+            frame.setVisible(true);
         });
     }
 }

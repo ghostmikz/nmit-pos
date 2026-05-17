@@ -1,6 +1,5 @@
 package view;
 
-import client.SocketClient;
 import i18n.I18n;
 import i18n.LanguageListener;
 import model.User;
@@ -22,15 +21,15 @@ public class MainFrame extends JFrame implements LanguageListener {
     private JButton posBtn, inventoryBtn, reportsBtn, dashboardBtn, usersBtn, settingsBtn, logoutBtn;
     private JLabel  roleLabel;
 
-    // Panels that implement LanguageListener
     private final List<LanguageListener> panelListeners = new ArrayList<>();
+    private Runnable logoutListener;
 
     public MainFrame(User user) {
         this.user = user;
         setTitle(I18n.t("app.title") + " — " + user.getFullName());
         setDefaultCloseOperation(EXIT_ON_CLOSE);
+        setUndecorated(true);
         setExtendedState(JFrame.MAXIMIZED_BOTH);
-        setMinimumSize(new Dimension(1200, 800));
         setContentPane(buildUI());
         I18n.addListener(this);
     }
@@ -125,7 +124,13 @@ public class MainFrame extends JFrame implements LanguageListener {
         // Logout
         logoutBtn = navBtn("  " + I18n.t("nav.logout"), false);
         logoutBtn.setForeground(new Color(0xF87171));
-        logoutBtn.addActionListener(e -> logout());
+        logoutBtn.addActionListener(e -> {
+            int ok = JOptionPane.showConfirmDialog(this,
+                    I18n.t("nav.logout") + "?", I18n.t("common.confirm"),
+                    JOptionPane.YES_NO_OPTION);
+            if (ok == JOptionPane.YES_OPTION && logoutListener != null)
+                logoutListener.run();
+        });
         sidebar.add(logoutBtn);
 
         return sidebar;
@@ -134,33 +139,27 @@ public class MainFrame extends JFrame implements LanguageListener {
     private JPanel buildContent() {
         cardLayout  = new CardLayout();
         contentArea = new JPanel(cardLayout);
-
-        POSPanel pos = new POSPanel(user);
-        contentArea.add(pos, "POS");
-        if (pos instanceof LanguageListener ll) panelListeners.add(ll);
-
-        if (user.isManager()) {
-            InventoryPanel inv = new InventoryPanel(user);
-            contentArea.add(inv, "INVENTORY");
-            if (inv instanceof LanguageListener ll) panelListeners.add(ll);
-
-            ReportsPanel rep = new ReportsPanel(user);
-            contentArea.add(rep, "REPORTS");
-            if (rep instanceof LanguageListener ll) panelListeners.add(ll);
-
-            DashboardPanel dash = new DashboardPanel(user);
-            contentArea.add(dash, "DASHBOARD");
-            if (dash instanceof LanguageListener ll) panelListeners.add(ll);
-        }
-
-        if (user.isAdmin()) {
-            UsersPanel usr = new UsersPanel(user);
-            contentArea.add(usr, "USERS");
-            if (usr instanceof LanguageListener ll) panelListeners.add(ll);
-        }
-
-        cardLayout.show(contentArea, "POS");
         return contentArea;
+    }
+
+    // ── Public view API (called by MainController) ────────────────────────────
+
+    public void addPanel(JPanel panel, String key) {
+        contentArea.add(panel, key);
+        if (panel instanceof LanguageListener ll) panelListeners.add(ll);
+    }
+
+    public void showPanel(String key) {
+        cardLayout.show(contentArea, key);
+    }
+
+    public void setLogoutListener(Runnable listener) {
+        this.logoutListener = listener;
+    }
+
+    public void close() {
+        I18n.removeListener(this);
+        dispose();
     }
 
     private void switchPanel(String key, JButton active, JPanel sidebar) {
@@ -172,21 +171,6 @@ public class MainFrame extends JFrame implements LanguageListener {
                 if (!b.getForeground().equals(new Color(0xF87171)))
                     b.setForeground(sel ? Color.WHITE : new Color(0x94A3B8));
             }
-        }
-    }
-
-    private void logout() {
-        int confirm = JOptionPane.showConfirmDialog(this,
-                I18n.t("nav.logout") + "?", I18n.t("common.confirm"),
-                JOptionPane.YES_NO_OPTION);
-        if (confirm == JOptionPane.YES_OPTION) {
-            try {
-                SocketClient.getInstance().send("LOGOUT", user.getToken());
-                SocketClient.getInstance().disconnect();
-            } catch (Exception ignored) {}
-            I18n.removeListener(this);
-            dispose();
-            new LoginFrame().setVisible(true);
         }
     }
 
