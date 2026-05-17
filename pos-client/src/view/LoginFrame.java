@@ -16,6 +16,7 @@ import java.util.Map;
 
 public class LoginFrame extends JFrame implements LanguageListener {
 
+    // ── Colors ────────────────────────────────────────────────────────────────
     private static final Color BRAND    = new Color(0x9b2a2a);
     private static final Color BRAND_DK = new Color(0x7a1f1f);
     private static final Color INK      = new Color(0x1a1a1a);
@@ -27,6 +28,30 @@ public class LoginFrame extends JFrame implements LanguageListener {
     private static final int SHADOW_X = 8;
     private static final int SHADOW_Y = 16;
 
+    // ── Icon cache (loaded once) ──────────────────────────────────────────────
+    private static final ImageIcon IC_LOGO;
+    private static final ImageIcon IC_USER;
+    private static final ImageIcon IC_LOCK;
+    private static final ImageIcon IC_EYE;
+
+    static {
+        IC_LOGO = asset("/assets/logo.png",       32);
+        IC_USER = asset("/assets/icons/user.png", 18);
+        IC_LOCK = asset("/assets/icons/lock.png", 18);
+        IC_EYE  = asset("/assets/icons/eye.png",  18);
+    }
+
+    private static ImageIcon asset(String path, int size) {
+        URL url = LoginFrame.class.getResource(path);
+        if (url == null) return null;
+        try {
+            Image img = new ImageIcon(url).getImage()
+                            .getScaledInstance(size, size, Image.SCALE_SMOOTH);
+            return new ImageIcon(img);
+        } catch (Exception e) { return null; }
+    }
+
+    // ── Instance fields ───────────────────────────────────────────────────────
     private JTextField     usernameField;
     private JPasswordField passwordField;
     private JLabel         errorLabel;
@@ -50,14 +75,13 @@ public class LoginFrame extends JFrame implements LanguageListener {
     // ── Root ──────────────────────────────────────────────────────────────────
 
     private JPanel buildUI() {
-        // Full-screen red gradient
         JPanel root = new JPanel(new GridBagLayout()) {
             @Override protected void paintComponent(Graphics g) {
                 super.paintComponent(g);
                 Graphics2D g2 = (Graphics2D) g.create();
                 g2.setPaint(new GradientPaint(
-                        0, 0,                     new Color(0xa83333),
-                        getWidth(), getHeight(),   BRAND_DK));
+                        0, 0,                   new Color(0xa83333),
+                        getWidth(), getHeight(), BRAND_DK));
                 g2.fillRect(0, 0, getWidth(), getHeight());
                 g2.dispose();
             }
@@ -83,17 +107,15 @@ public class LoginFrame extends JFrame implements LanguageListener {
         left.setOpaque(false);
         left.setBorder(new EmptyBorder(56, 64, 56, 64));
 
-        // Brand row
         JPanel brand = new JPanel(new FlowLayout(FlowLayout.LEFT, 0, 0));
         brand.setOpaque(false);
-        brand.add(logoImage());
+        brand.add(logoComp());
         brand.add(Box.createHorizontalStrut(12));
         JLabel name = new JLabel("MIT");
         name.setFont(new Font("Dialog", Font.BOLD, 26));
         name.setForeground(Color.WHITE);
         brand.add(name);
 
-        // Headline + subline, vertically centered
         JPanel center = new JPanel();
         center.setLayout(new BoxLayout(center, BoxLayout.Y_AXIS));
         center.setOpaque(false);
@@ -123,44 +145,7 @@ public class LoginFrame extends JFrame implements LanguageListener {
         return left;
     }
 
-    // Load logo.png from assets/; falls back to drawn waveform icon if not found
-    private JComponent logoImage() {
-        try {
-            URL res = LoginFrame.class.getResource("/assets/logo.png");
-            if (res != null) {
-                Image img = new ImageIcon(res).getImage().getScaledInstance(32, 32, Image.SCALE_SMOOTH);
-                JLabel lbl = new JLabel(new ImageIcon(img));
-                lbl.setPreferredSize(new Dimension(32, 32));
-                return lbl;
-            }
-        } catch (Exception ignored) {}
-        return waveformIcon();
-    }
-
-    // Fallback waveform icon: M4 30 V8 L12 18 L18 10 L24 18 L32 8 V30 (36x36 → 32x32)
-    private JComponent waveformIcon() {
-        return new JComponent() {
-            { setPreferredSize(new Dimension(32, 32)); }
-            @Override protected void paintComponent(Graphics g) {
-                Graphics2D g2 = (Graphics2D) g.create();
-                g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
-                g2.setColor(Color.WHITE);
-                g2.setStroke(new BasicStroke(2.2f, BasicStroke.CAP_ROUND, BasicStroke.JOIN_ROUND));
-                float s = 32f / 36f;
-                int[] sx = {4, 4, 12, 18, 24, 32, 32};
-                int[] sy = {30, 8, 18, 10, 18,  8, 30};
-                int[] dx = new int[sx.length], dy = new int[sy.length];
-                for (int i = 0; i < sx.length; i++) {
-                    dx[i] = Math.round(sx[i] * s);
-                    dy[i] = Math.round(sy[i] * s);
-                }
-                g2.drawPolyline(dx, dy, dx.length);
-                g2.dispose();
-            }
-        };
-    }
-
-    // ── Right panel (card) ────────────────────────────────────────────────────
+    // ── Right panel / card ────────────────────────────────────────────────────
 
     private JPanel buildRightPanel() {
         JPanel right = new JPanel(new GridBagLayout());
@@ -171,22 +156,19 @@ public class LoginFrame extends JFrame implements LanguageListener {
     }
 
     private JPanel buildCard() {
-        // Shadow wrapper: paints drop-shadow then white rounded rect
         JPanel card = new JPanel() {
             @Override protected void paintComponent(Graphics g) {
                 Graphics2D g2 = (Graphics2D) g.create();
                 g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
                 int w = getWidth() - SHADOW_X, h = getHeight() - SHADOW_Y;
-                // Layered shadow
                 for (int i = SHADOW_Y; i > 0; i--) {
                     int alpha = (int)(45.0 * (SHADOW_Y - i + 1) / SHADOW_Y);
                     g2.setColor(new Color(0, 0, 0, alpha));
                     g2.fill(new RoundRectangle2D.Float(
-                            SHADOW_X * (1 - (float)i / SHADOW_Y),
-                            SHADOW_Y * (1 - (float)i / SHADOW_Y),
+                            SHADOW_X * (1 - (float) i / SHADOW_Y),
+                            SHADOW_Y * (1 - (float) i / SHADOW_Y),
                             w, h, 22, 22));
                 }
-                // White card
                 g2.setColor(Color.WHITE);
                 g2.fill(new RoundRectangle2D.Float(0, 0, w, h, 18, 18));
                 g2.dispose();
@@ -197,7 +179,6 @@ public class LoginFrame extends JFrame implements LanguageListener {
         card.setBorder(new EmptyBorder(40, 36, 36 + SHADOW_Y, 36 + SHADOW_X));
         card.setMaximumSize(new Dimension(420 + SHADOW_X, Integer.MAX_VALUE));
 
-        // Greeting
         JLabel greet = new JLabel("Тавтай морил");
         greet.setFont(new Font("Dialog", Font.BOLD, 26));
         greet.setForeground(INK);
@@ -226,11 +207,11 @@ public class LoginFrame extends JFrame implements LanguageListener {
         card.add(Box.createVerticalStrut(26));
         card.add(fieldLabel("Ажилчны код"));
         card.add(Box.createVerticalStrut(8));
-        card.add(iconField(usernameField, Icon.USER, false));
+        card.add(iconField(usernameField, IC_USER, false));
         card.add(Box.createVerticalStrut(16));
         card.add(fieldLabel("Нууц үг"));
         card.add(Box.createVerticalStrut(8));
-        card.add(iconField(passwordField, Icon.LOCK, true));
+        card.add(iconField(passwordField, IC_LOCK, true));
         card.add(Box.createVerticalStrut(4));
         card.add(errorLabel);
         card.add(Box.createVerticalStrut(10));
@@ -239,9 +220,35 @@ public class LoginFrame extends JFrame implements LanguageListener {
         return card;
     }
 
-    // ── Field helpers ─────────────────────────────────────────────────────────
+    // ── Component builders ────────────────────────────────────────────────────
 
-    private enum Icon { USER, LOCK }
+    // Brand logo: uses assets/logo.png, falls back to drawn waveform
+    private JComponent logoComp() {
+        if (IC_LOGO != null) {
+            JLabel lbl = new JLabel(IC_LOGO);
+            lbl.setPreferredSize(new Dimension(32, 32));
+            return lbl;
+        }
+        return new JComponent() {
+            { setPreferredSize(new Dimension(32, 32)); }
+            @Override protected void paintComponent(Graphics g) {
+                Graphics2D g2 = (Graphics2D) g.create();
+                g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+                g2.setColor(Color.WHITE);
+                g2.setStroke(new BasicStroke(2.2f, BasicStroke.CAP_ROUND, BasicStroke.JOIN_ROUND));
+                float s = 32f / 36f;
+                int[] sx = {4, 4, 12, 18, 24, 32, 32};
+                int[] sy = {30, 8, 18, 10, 18,  8, 30};
+                int[] dx = new int[sx.length], dy = new int[sy.length];
+                for (int i = 0; i < sx.length; i++) {
+                    dx[i] = Math.round(sx[i] * s);
+                    dy[i] = Math.round(sy[i] * s);
+                }
+                g2.drawPolyline(dx, dy, dx.length);
+                g2.dispose();
+            }
+        };
+    }
 
     private JLabel fieldLabel(String text) {
         JLabel l = new JLabel(text);
@@ -251,7 +258,8 @@ public class LoginFrame extends JFrame implements LanguageListener {
         return l;
     }
 
-    private JPanel iconField(JTextField field, Icon icon, boolean showEye) {
+    // Field row: rounded container + leading icon + text field + optional eye icon
+    private JPanel iconField(JTextField field, ImageIcon leadIcon, boolean showEye) {
         JPanel wrap = new JPanel(new BorderLayout()) {
             @Override protected void paintComponent(Graphics g) {
                 Graphics2D g2 = (Graphics2D) g.create();
@@ -269,7 +277,7 @@ public class LoginFrame extends JFrame implements LanguageListener {
         wrap.setAlignmentX(LEFT_ALIGNMENT);
         wrap.setBorder(new EmptyBorder(0, 14, 0, 14));
 
-        wrap.add(iconComp(icon), BorderLayout.WEST);
+        wrap.add(iconLabel(leadIcon, false), BorderLayout.WEST);
 
         field.setOpaque(false);
         field.setBorder(new EmptyBorder(0, 10, 0, 0));
@@ -277,57 +285,19 @@ public class LoginFrame extends JFrame implements LanguageListener {
         field.setForeground(INK);
         wrap.add(field, BorderLayout.CENTER);
 
-        if (showEye) wrap.add(eyeComp(), BorderLayout.EAST);
+        if (showEye) wrap.add(iconLabel(IC_EYE, true), BorderLayout.EAST);
 
         return wrap;
     }
 
-    // Envelope icon (USER) or lock icon (LOCK), drawn with Graphics2D
-    private JComponent iconComp(Icon icon) {
-        return new JComponent() {
-            { setPreferredSize(new Dimension(20, 20)); }
-            @Override protected void paintComponent(Graphics g) {
-                Graphics2D g2 = (Graphics2D) g.create();
-                g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
-                g2.setColor(MUTED);
-                g2.setStroke(new BasicStroke(1.6f, BasicStroke.CAP_ROUND, BasicStroke.JOIN_ROUND));
-                int w = getWidth(), h = getHeight();
-                if (icon == Icon.USER) {
-                    // Envelope rect
-                    g2.drawRoundRect(1, 3, w - 2, h - 5, 2, 2);
-                    // V-fold lines from top corners to center
-                    g2.drawLine(1, 3, w / 2, h / 2 + 1);
-                    g2.drawLine(w - 1, 3, w / 2, h / 2 + 1);
-                } else {
-                    // Lock body
-                    g2.drawRoundRect(3, h / 2, w - 6, h / 2 - 2, 3, 3);
-                    // Shackle (arc)
-                    g2.drawArc(4, 2, w - 8, h / 2, 0, 180);
-                }
-                g2.dispose();
-            }
-        };
+    // Returns a fixed-size icon label; if icon is null, falls back to a drawn placeholder
+    private JLabel iconLabel(ImageIcon icon, boolean trailingPad) {
+        JLabel lbl = new JLabel(icon);   // JLabel with null icon is blank — that's fine
+        lbl.setPreferredSize(new Dimension(trailingPad ? 28 : 20, 20));
+        if (icon == null) lbl.setPreferredSize(new Dimension(0, 0)); // collapse if no image
+        return lbl;
     }
 
-    // Eye icon
-    private JComponent eyeComp() {
-        return new JComponent() {
-            { setPreferredSize(new Dimension(20, 20)); }
-            @Override protected void paintComponent(Graphics g) {
-                Graphics2D g2 = (Graphics2D) g.create();
-                g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
-                g2.setColor(MUTED);
-                g2.setStroke(new BasicStroke(1.6f, BasicStroke.CAP_ROUND, BasicStroke.JOIN_ROUND));
-                int cx = getWidth() / 2, cy = getHeight() / 2;
-                g2.drawArc(1, cy - 5, getWidth() - 2, 10, 0, 180);
-                g2.drawArc(1, cy - 5, getWidth() - 2, 10, 180, 180);
-                g2.drawOval(cx - 3, cy - 3, 6, 6);
-                g2.dispose();
-            }
-        };
-    }
-
-    // Red rounded login button
     private JButton redButton(String text) {
         JButton btn = new JButton(text) {
             @Override protected void paintComponent(Graphics g) {
