@@ -26,8 +26,8 @@ find "$SRC" -name "*.java" > /tmp/client_sources.txt
 "$JAVAC" -cp "$LIBS" -d "$OUT" @/tmp/client_sources.txt
 
 if [ $? -eq 0 ]; then
-    # Copy .properties files to out so ResourceBundle can find them
-    find "$SRC" -name "*.properties" | while read f; do
+    # Copy resource files to out (properties + images)
+    find "$SRC" \( -name "*.properties" -o -name "*.png" -o -name "*.jpg" -o -name "*.svg" -o -name "*.gif" \) | while read f; do
         rel="${f#$SRC/}"
         mkdir -p "$OUT/$(dirname "$rel")"
         cp "$f" "$OUT/$rel"

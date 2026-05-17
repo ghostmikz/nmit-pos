@@ -10,6 +10,7 @@ import javax.swing.*;
 import javax.swing.border.EmptyBorder;
 import java.awt.*;
 import java.awt.geom.RoundRectangle2D;
+import java.net.URL;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -85,7 +86,7 @@ public class LoginFrame extends JFrame implements LanguageListener {
         // Brand row
         JPanel brand = new JPanel(new FlowLayout(FlowLayout.LEFT, 0, 0));
         brand.setOpaque(false);
-        brand.add(waveformIcon());
+        brand.add(logoImage());
         brand.add(Box.createHorizontalStrut(12));
         JLabel name = new JLabel("MIT");
         name.setFont(new Font("Dialog", Font.BOLD, 26));
@@ -122,7 +123,21 @@ public class LoginFrame extends JFrame implements LanguageListener {
         return left;
     }
 
-    // SVG waveform icon: M4 30 V8 L12 18 L18 10 L24 18 L32 8 V30 (36x36 canvas → 32x32)
+    // Load logo.png from assets/; falls back to drawn waveform icon if not found
+    private JComponent logoImage() {
+        try {
+            URL res = LoginFrame.class.getResource("/assets/logo.png");
+            if (res != null) {
+                Image img = new ImageIcon(res).getImage().getScaledInstance(32, 32, Image.SCALE_SMOOTH);
+                JLabel lbl = new JLabel(new ImageIcon(img));
+                lbl.setPreferredSize(new Dimension(32, 32));
+                return lbl;
+            }
+        } catch (Exception ignored) {}
+        return waveformIcon();
+    }
+
+    // Fallback waveform icon: M4 30 V8 L12 18 L18 10 L24 18 L32 8 V30 (36x36 → 32x32)
     private JComponent waveformIcon() {
         return new JComponent() {
             { setPreferredSize(new Dimension(32, 32)); }
@@ -180,7 +195,6 @@ public class LoginFrame extends JFrame implements LanguageListener {
         card.setLayout(new BoxLayout(card, BoxLayout.Y_AXIS));
         card.setOpaque(false);
         card.setBorder(new EmptyBorder(40, 36, 36 + SHADOW_Y, 36 + SHADOW_X));
-        card.setPreferredSize(new Dimension(420 + SHADOW_X, 0));
         card.setMaximumSize(new Dimension(420 + SHADOW_X, Integer.MAX_VALUE));
 
         // Greeting
