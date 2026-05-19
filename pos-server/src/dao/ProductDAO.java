@@ -9,7 +9,7 @@ public class ProductDAO {
 
     public List<Product> findAll() throws SQLException {
         List<Product> list = new ArrayList<>();
-        String sql = "SELECT id, barcode, product_name, category_name, price, cost_price, stock_quantity, unit, expiry_date, is_active FROM view_product_stock ORDER BY product_name";
+        String sql = "SELECT id, barcode, product_name, category_id, category_name, price, cost_price, stock_quantity, unit, expiry_date, is_active, has_image FROM view_product_stock ORDER BY product_name";
         try (Statement st = DatabaseConnection.getInstance().createStatement();
              ResultSet rs = st.executeQuery(sql)) {
             while (rs.next()) list.add(mapRow(rs));
@@ -75,6 +75,25 @@ public class ProductDAO {
         }
     }
 
+    public byte[] getImage(int productId) throws SQLException {
+        String sql = "SELECT image FROM products WHERE id=?";
+        try (PreparedStatement ps = DatabaseConnection.getInstance().prepareStatement(sql)) {
+            ps.setInt(1, productId);
+            try (ResultSet rs = ps.executeQuery()) {
+                return rs.next() ? rs.getBytes("image") : null;
+            }
+        }
+    }
+
+    public void updateImage(int productId, byte[] image) throws SQLException {
+        String sql = "UPDATE products SET image=? WHERE id=?";
+        try (PreparedStatement ps = DatabaseConnection.getInstance().prepareStatement(sql)) {
+            ps.setBytes(1, image);
+            ps.setInt(2, productId);
+            ps.executeUpdate();
+        }
+    }
+
     public void updateStock(int productId, int quantity) throws SQLException {
         String sql = "CALL sp_update_stock(?,?)";
         try (CallableStatement cs = DatabaseConnection.getInstance().prepareCall(sql)) {
@@ -89,13 +108,15 @@ public class ProductDAO {
         p.setId(rs.getInt("id"));
         p.setBarcode(rs.getString("barcode"));
         p.setName(rs.getString("product_name"));
+        p.setCategoryId(rs.getInt("category_id"));
         p.setCategoryName(rs.getString("category_name"));
         p.setPrice(rs.getBigDecimal("price"));
         p.setCostPrice(rs.getBigDecimal("cost_price"));
         p.setStockQuantity(rs.getInt("stock_quantity"));
         p.setUnit(rs.getString("unit"));
-        p.setExpiryDate(rs.getDate("expiry_date") != null ? rs.getDate("expiry_date").toLocalDate() : null);
+        p.setExpiryDate(rs.getDate("expiry_date") != null ? rs.getDate("expiry_date").toString() : null);
         p.setActive(rs.getBoolean("is_active"));
+        p.setHasImage(rs.getBoolean("has_image"));
         return p;
     }
 }

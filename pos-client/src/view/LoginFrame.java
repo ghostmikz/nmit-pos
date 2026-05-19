@@ -121,6 +121,13 @@ public class LoginFrame extends JFrame implements LanguageListener {
     private JButton        loginBtn;
     private LoginListener  loginListener;
 
+    private JLabel greetLabel;
+    private JLabel subLabel;
+    private JLabel usernameLbl;
+    private JLabel passwordLbl;
+    private JLabel headlineLabel;
+    private JLabel taglineLabel;
+
     public LoginFrame() {
         setTitle(I18n.t("app.title"));
         setDefaultCloseOperation(EXIT_ON_CLOSE);
@@ -134,6 +141,13 @@ public class LoginFrame extends JFrame implements LanguageListener {
     @Override
     public void onLanguageChanged() {
         setTitle(I18n.t("app.title"));
+        headlineLabel.setText("<html><div style='width:460px'>" + I18n.t("login.headline") + "</div></html>");
+        taglineLabel.setText("<html><div style='width:420px'>" + I18n.t("login.tagline") + "</div></html>");
+        greetLabel.setText(I18n.t("login.greet"));
+        subLabel.setText(I18n.t("login.subline"));
+        usernameLbl.setText(I18n.t("login.username"));
+        passwordLbl.setText(I18n.t("login.password"));
+        loginBtn.setText(I18n.t("login.button"));
         errorLabel.setText(" ");
     }
 
@@ -211,22 +225,20 @@ public class LoginFrame extends JFrame implements LanguageListener {
         center.setLayout(new BoxLayout(center, BoxLayout.Y_AXIS));
         center.setOpaque(false);
 
-        JLabel headline = new JLabel(
-                "<html><div style='width:460px'>Ухаалаг жижиглэн худалдааны POS систем</div></html>");
-        headline.setFont(new Font("Dialog", Font.BOLD, 44));
-        headline.setForeground(Color.WHITE);
-        headline.setAlignmentX(LEFT_ALIGNMENT);
+        headlineLabel = new JLabel("<html><div style='width:460px'>" + I18n.t("login.headline") + "</div></html>");
+        headlineLabel.setFont(new Font("Dialog", Font.BOLD, 44));
+        headlineLabel.setForeground(Color.WHITE);
+        headlineLabel.setAlignmentX(LEFT_ALIGNMENT);
 
-        JLabel subline = new JLabel(
-                "<html><div style='width:420px'>Борлуулалт, бараа материал, ажилтны бүртгэлийг нэг газраас удирдаарай.</div></html>");
-        subline.setFont(new Font("Dialog", Font.PLAIN, 16));
-        subline.setForeground(new Color(255, 255, 255, 190));
-        subline.setAlignmentX(LEFT_ALIGNMENT);
+        taglineLabel = new JLabel("<html><div style='width:420px'>" + I18n.t("login.tagline") + "</div></html>");
+        taglineLabel.setFont(new Font("Dialog", Font.PLAIN, 16));
+        taglineLabel.setForeground(new Color(255, 255, 255, 190));
+        taglineLabel.setAlignmentX(LEFT_ALIGNMENT);
 
         center.add(Box.createVerticalGlue());
-        center.add(headline);
+        center.add(headlineLabel);
         center.add(Box.createVerticalStrut(18));
-        center.add(subline);
+        center.add(taglineLabel);
         center.add(Box.createVerticalGlue());
 
         left.add(brand, BorderLayout.NORTH);
@@ -299,15 +311,15 @@ public class LoginFrame extends JFrame implements LanguageListener {
         card.setOpaque(false);
         card.setBorder(new EmptyBorder(40, 36, 36, 36));
 
-        JLabel greet = new JLabel("Тавтай морил");
-        greet.setFont(new Font("Dialog", Font.BOLD, 26));
-        greet.setForeground(INK);
-        greet.setAlignmentX(LEFT_ALIGNMENT);
+        greetLabel = new JLabel(I18n.t("login.greet"));
+        greetLabel.setFont(new Font("Dialog", Font.BOLD, 26));
+        greetLabel.setForeground(INK);
+        greetLabel.setAlignmentX(LEFT_ALIGNMENT);
 
-        JLabel sub = new JLabel("Үргэлжлүүлэхийн тулд бүртгэлээрээ нэвтэрнэ үү");
-        sub.setFont(new Font("Dialog", Font.PLAIN, 13));
-        sub.setForeground(MUTED);
-        sub.setAlignmentX(LEFT_ALIGNMENT);
+        subLabel = new JLabel(I18n.t("login.subline"));
+        subLabel.setFont(new Font("Dialog", Font.PLAIN, 13));
+        subLabel.setForeground(MUTED);
+        subLabel.setAlignmentX(LEFT_ALIGNMENT);
 
         usernameField = new JTextField();
         usernameField.addActionListener(e -> fireLogin());
@@ -319,18 +331,21 @@ public class LoginFrame extends JFrame implements LanguageListener {
         errorLabel.setFont(new Font("Dialog", Font.PLAIN, 13));
         errorLabel.setAlignmentX(LEFT_ALIGNMENT);
 
-        loginBtn = redButton("Нэвтрэх");
+        loginBtn = redButton(I18n.t("login.button"));
         loginBtn.addActionListener(e -> fireLogin());
 
-        card.add(greet);
+        usernameLbl = fieldLabel(I18n.t("login.username"));
+        passwordLbl = fieldLabel(I18n.t("login.password"));
+
+        card.add(greetLabel);
         card.add(Box.createVerticalStrut(6));
-        card.add(sub);
+        card.add(subLabel);
         card.add(Box.createVerticalStrut(26));
-        card.add(fieldLabel("Ажилтны код"));
+        card.add(usernameLbl);
         card.add(Box.createVerticalStrut(8));
         card.add(inputRow(usernameField, IC_USER, false));
         card.add(Box.createVerticalStrut(16));
-        card.add(fieldLabel("Нууц үг"));
+        card.add(passwordLbl);
         card.add(Box.createVerticalStrut(8));
         card.add(inputRow(passwordField, IC_LOCK, true));
         card.add(Box.createVerticalStrut(4));
@@ -450,7 +465,7 @@ public class LoginFrame extends JFrame implements LanguageListener {
 
     public void setLoading(boolean loading) {
         loginBtn.setEnabled(!loading);
-        loginBtn.setText(loading ? I18n.t("common.loading") : "Нэвтрэх");
+        loginBtn.setText(loading ? I18n.t("common.loading") : I18n.t("login.button"));
     }
 
     public void showError(String msg) {

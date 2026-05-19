@@ -5,9 +5,14 @@ import i18n.LanguageListener;
 import model.User;
 import view.panels.*;
 
+import javax.imageio.ImageIO;
 import javax.swing.*;
 import javax.swing.border.*;
+import javax.swing.plaf.basic.BasicScrollBarUI;
 import java.awt.*;
+import java.awt.geom.AffineTransform;
+import java.awt.image.BufferedImage;
+import java.net.URL;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -37,92 +42,146 @@ public class MainFrame extends JFrame implements LanguageListener {
     @Override
     public void onLanguageChanged() {
         setTitle(I18n.t("app.title") + " — " + user.getFullName());
-        roleLabel.setText("  " + roleName(user.getRole()));
-        posBtn.setText("  " + I18n.t("nav.pos"));
-        if (inventoryBtn != null) inventoryBtn.setText("  " + I18n.t("nav.inventory"));
-        if (reportsBtn   != null) reportsBtn.setText("  "   + I18n.t("nav.reports"));
-        if (dashboardBtn != null) dashboardBtn.setText("  " + I18n.t("nav.dashboard"));
-        if (usersBtn     != null) usersBtn.setText("  "     + I18n.t("nav.users"));
-        settingsBtn.setText("  " + I18n.t("nav.settings"));
-        logoutBtn.setText("  "   + I18n.t("nav.logout"));
-        // Notify panels
+        roleLabel.setText(roleName(user.getRole()));
+        posBtn.setText(I18n.t("nav.pos"));
+        if (inventoryBtn != null) inventoryBtn.setText(I18n.t("nav.inventory"));
+        if (reportsBtn   != null) reportsBtn.setText(I18n.t("nav.reports"));
+        if (dashboardBtn != null) dashboardBtn.setText(I18n.t("nav.dashboard"));
+        if (usersBtn     != null) usersBtn.setText(I18n.t("nav.users"));
+        settingsBtn.setText(I18n.t("nav.settings"));
+        logoutBtn.setText(I18n.t("nav.logout"));
         for (LanguageListener l : panelListeners) l.onLanguageChanged();
+    }
+
+    private static final Color SIDEBAR  = new Color(0x9b2a2a);
+    private static final Color NAV_ACT  = new Color(0x7a1a1a);
+    private static final Color NAV_FG   = new Color(0xF5C6C6);
+
+    private static final ImageIcon IC_LOGO;
+    private static final ImageIcon IC_POS;
+    private static final ImageIcon IC_INVENTORY;
+    private static final ImageIcon IC_REPORTS;
+    private static final ImageIcon IC_DASHBOARD;
+    private static final ImageIcon IC_USERS;
+    private static final ImageIcon IC_SETTINGS;
+    private static final ImageIcon IC_LOGOUT;
+
+    static {
+        IC_LOGO      = assetH ("/assets/logo.png",            36);
+        IC_POS       = assetSq("/assets/icons/pos.png",       18);
+        IC_INVENTORY = assetSq("/assets/icons/inventory.png", 18);
+        IC_REPORTS   = assetSq("/assets/icons/reports.png",   18);
+        IC_DASHBOARD = assetSq("/assets/icons/dashboard.png", 18);
+        IC_USERS     = assetSq("/assets/icons/users.png",     18);
+        IC_SETTINGS  = assetSq("/assets/icons/settings.png",  18);
+        IC_LOGOUT    = assetSq("/assets/icons/logout.png",    18);
     }
 
     private JPanel buildUI() {
         JPanel root = new JPanel(new BorderLayout());
+        root.add(buildTitleBar(), BorderLayout.NORTH);
         root.add(buildSidebar(), BorderLayout.WEST);
         root.add(buildContent(), BorderLayout.CENTER);
         return root;
     }
 
+    private JPanel buildTitleBar() {
+        JPanel bar = new JPanel(new BorderLayout());
+        bar.setBackground(SIDEBAR);
+        bar.setPreferredSize(new Dimension(0, 42));
+
+        JPanel btns = new JPanel(new FlowLayout(FlowLayout.RIGHT, 12, 10));
+        btns.setOpaque(false);
+        btns.add(winBtn("−", e -> setState(ICONIFIED)));
+        btns.add(winBtn("×", e -> dispatchEvent(
+                new java.awt.event.WindowEvent(this, java.awt.event.WindowEvent.WINDOW_CLOSING))));
+        bar.add(btns, BorderLayout.EAST);
+        return bar;
+    }
+
+    private JButton winBtn(String label, java.awt.event.ActionListener action) {
+        JButton b = new JButton(label);
+        b.setFont(new Font("Dialog", Font.PLAIN, 16));
+        b.setForeground(new Color(255, 255, 255, 160));
+        b.setContentAreaFilled(false);
+        b.setBorderPainted(false);
+        b.setFocusPainted(false);
+        b.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
+        b.addMouseListener(new java.awt.event.MouseAdapter() {
+            @Override public void mouseEntered(java.awt.event.MouseEvent e) { b.setForeground(Color.WHITE); }
+            @Override public void mouseExited(java.awt.event.MouseEvent e)  { b.setForeground(new Color(255, 255, 255, 160)); }
+        });
+        b.addActionListener(action);
+        return b;
+    }
+
     private JPanel buildSidebar() {
         JPanel sidebar = new JPanel();
         sidebar.setLayout(new BoxLayout(sidebar, BoxLayout.Y_AXIS));
-        sidebar.setBackground(new Color(0x1E293B));
+        sidebar.setBackground(SIDEBAR);
         sidebar.setPreferredSize(new Dimension(220, 0));
-        sidebar.setBorder(new EmptyBorder(24, 0, 24, 0));
 
-        JLabel logo = new JLabel("  NMIT-POS");
-        logo.setFont(new Font("Dialog", Font.BOLD, 22));
-        logo.setForeground(new Color(0x2563EB));
-        logo.setBorder(new EmptyBorder(0, 20, 20, 20));
+        // ── Logo ──────────────────────────────────────────────────────────────
+        sidebar.add(Box.createVerticalStrut(20));
+
+        JLabel logo = IC_LOGO != null ? new JLabel(IC_LOGO) : new JLabel("NMIT POS");
+        if (IC_LOGO == null) { logo.setFont(new Font("Dialog", Font.BOLD, 20)); logo.setForeground(Color.WHITE); }
+        logo.setHorizontalAlignment(SwingConstants.CENTER);
         logo.setAlignmentX(LEFT_ALIGNMENT);
+        logo.setMaximumSize(new Dimension(220, 44));
         sidebar.add(logo);
 
-        roleLabel = new JLabel("  " + roleName(user.getRole()));
-        roleLabel.setFont(new Font("Dialog", Font.PLAIN, 13));
-        roleLabel.setForeground(new Color(0x94A3B8));
-        roleLabel.setBorder(new EmptyBorder(0, 20, 14, 20));
+        sidebar.add(Box.createVerticalStrut(8));
+
+        roleLabel = new JLabel(roleName(user.getRole()));
+        roleLabel.setFont(new Font("Dialog", Font.PLAIN, 12));
+        roleLabel.setForeground(NAV_FG);
+        roleLabel.setHorizontalAlignment(SwingConstants.CENTER);
         roleLabel.setAlignmentX(LEFT_ALIGNMENT);
+        roleLabel.setMaximumSize(new Dimension(220, 20));
         sidebar.add(roleLabel);
 
+        sidebar.add(Box.createVerticalStrut(16));
         sidebar.add(separator());
-        sidebar.add(Box.createVerticalStrut(12));
+        sidebar.add(Box.createVerticalStrut(6));
 
-        // Nav buttons
-        posBtn = navBtn("  " + I18n.t("nav.pos"), true);
+        // ── Main nav ──────────────────────────────────────────────────────────
+        posBtn = navBtn(I18n.t("nav.pos"), true, IC_POS);
         posBtn.addActionListener(e -> switchPanel("POS", posBtn, sidebar));
         sidebar.add(posBtn);
 
         if (user.isManager()) {
-            inventoryBtn = navBtn("  " + I18n.t("nav.inventory"), false);
+            inventoryBtn = navBtn(I18n.t("nav.inventory"), false, IC_INVENTORY);
             inventoryBtn.addActionListener(e -> switchPanel("INVENTORY", inventoryBtn, sidebar));
             sidebar.add(inventoryBtn);
 
-            reportsBtn = navBtn("  " + I18n.t("nav.reports"), false);
+            reportsBtn = navBtn(I18n.t("nav.reports"), false, IC_REPORTS);
             reportsBtn.addActionListener(e -> switchPanel("REPORTS", reportsBtn, sidebar));
             sidebar.add(reportsBtn);
 
-            dashboardBtn = navBtn("  " + I18n.t("nav.dashboard"), false);
+            dashboardBtn = navBtn(I18n.t("nav.dashboard"), false, IC_DASHBOARD);
             dashboardBtn.addActionListener(e -> switchPanel("DASHBOARD", dashboardBtn, sidebar));
             sidebar.add(dashboardBtn);
         }
 
         if (user.isAdmin()) {
-            usersBtn = navBtn("  " + I18n.t("nav.users"), false);
+            usersBtn = navBtn(I18n.t("nav.users"), false, IC_USERS);
             usersBtn.addActionListener(e -> switchPanel("USERS", usersBtn, sidebar));
             sidebar.add(usersBtn);
         }
 
+        // ── Bottom section ────────────────────────────────────────────────────
         sidebar.add(Box.createVerticalGlue());
         sidebar.add(separator());
+        sidebar.add(Box.createVerticalStrut(6));
 
-        // Settings
-        settingsBtn = navBtn("  " + I18n.t("nav.settings"), false);
+        settingsBtn = navBtn(I18n.t("nav.settings"), false, IC_SETTINGS);
         settingsBtn.addActionListener(e -> new SettingsDialog(this).setVisible(true));
         sidebar.add(settingsBtn);
 
-        // User name
-        JLabel userLbl = new JLabel("  " + user.getFullName());
-        userLbl.setFont(new Font("Dialog", Font.PLAIN, 13));
-        userLbl.setForeground(new Color(0xCBD5E1));
-        userLbl.setBorder(new EmptyBorder(10, 20, 4, 20));
-        userLbl.setAlignmentX(LEFT_ALIGNMENT);
-        sidebar.add(userLbl);
+        sidebar.add(Box.createVerticalStrut(4));
 
-        // Logout
-        logoutBtn = navBtn("  " + I18n.t("nav.logout"), false);
+        logoutBtn = navBtn(I18n.t("nav.logout"), false, IC_LOGOUT);
         logoutBtn.setForeground(new Color(0xF87171));
         logoutBtn.addActionListener(e -> {
             int ok = JOptionPane.showConfirmDialog(this,
@@ -133,6 +192,7 @@ public class MainFrame extends JFrame implements LanguageListener {
         });
         sidebar.add(logoutBtn);
 
+        sidebar.add(Box.createVerticalStrut(16));
         return sidebar;
     }
 
@@ -167,23 +227,26 @@ public class MainFrame extends JFrame implements LanguageListener {
         for (Component c : sidebar.getComponents()) {
             if (c instanceof JButton b) {
                 boolean sel = b == active;
-                b.setBackground(sel ? new Color(0x2563EB) : new Color(0x1E293B));
+                b.setBackground(sel ? NAV_ACT : SIDEBAR);
                 if (!b.getForeground().equals(new Color(0xF87171)))
-                    b.setForeground(sel ? Color.WHITE : new Color(0x94A3B8));
+                    b.setForeground(sel ? Color.WHITE : NAV_FG);
             }
         }
     }
 
     // ── Helpers ───────────────────────────────────────────────────────────────
 
-    private JButton navBtn(String label, boolean selected) {
-        JButton btn = new JButton(label);
-        btn.setFont(new Font("Dialog", Font.PLAIN, 15));
-        btn.setForeground(selected ? Color.WHITE : new Color(0x94A3B8));
-        btn.setBackground(selected ? new Color(0x2563EB) : new Color(0x1E293B));
+    private JButton navBtn(String label, boolean selected, ImageIcon icon) {
+        JButton btn = new JButton(label, icon);
+        btn.setFont(new Font("Dialog", Font.PLAIN, 14));
+        btn.setForeground(selected ? Color.WHITE : NAV_FG);
+        btn.setBackground(selected ? NAV_ACT : SIDEBAR);
         btn.setBorderPainted(false);
         btn.setFocusPainted(false);
         btn.setHorizontalAlignment(SwingConstants.LEFT);
+        btn.setHorizontalTextPosition(SwingConstants.RIGHT);
+        btn.setIconTextGap(12);
+        btn.setBorder(new EmptyBorder(0, 18, 0, 0));
         btn.setMaximumSize(new Dimension(220, 46));
         btn.setPreferredSize(new Dimension(220, 46));
         btn.setAlignmentX(LEFT_ALIGNMENT);
@@ -193,9 +256,110 @@ public class MainFrame extends JFrame implements LanguageListener {
 
     private JSeparator separator() {
         JSeparator sep = new JSeparator();
-        sep.setForeground(new Color(0x334155));
+        sep.setForeground(new Color(0xb53c3c));
         sep.setMaximumSize(new Dimension(220, 1));
         return sep;
+    }
+
+    public static ImageIcon assetH(String path, int targetH) {
+        URL url = MainFrame.class.getResource(path);
+        if (url == null) return null;
+        try {
+            BufferedImage src = ImageIO.read(url);
+            if (src == null) return null;
+            int targetW = Math.max(1, src.getWidth() * targetH / src.getHeight());
+            return hdpiIcon(scaleHQ(src, targetW, targetH), scaleHQ(src, targetW * 2, targetH * 2), targetW, targetH);
+        } catch (Exception e) { return null; }
+    }
+
+    public static ImageIcon assetSq(String path, int size) {
+        URL url = MainFrame.class.getResource(path);
+        if (url == null) return null;
+        try {
+            BufferedImage src = ImageIO.read(url);
+            if (src == null) return null;
+            return hdpiIcon(scaleHQ(src, size, size), scaleHQ(src, size * 2, size * 2), size, size);
+        } catch (Exception e) { return null; }
+    }
+
+    private static ImageIcon hdpiIcon(BufferedImage x1, BufferedImage x2, int logW, int logH) {
+        return new ImageIcon(x1) {
+            @Override public int getIconWidth()  { return logW; }
+            @Override public int getIconHeight() { return logH; }
+            @Override public synchronized void paintIcon(Component c, Graphics g, int x, int y) {
+                Graphics2D g2 = (Graphics2D) g;
+                AffineTransform tx = g2.getTransform();
+                double sx = tx.getScaleX(), sy = tx.getScaleY();
+                BufferedImage img = (sx >= 1.5 && x2 != null) ? x2 : x1;
+                g2.setTransform(new AffineTransform());
+                int px = (int) Math.round(tx.getTranslateX() + x * sx);
+                int py = (int) Math.round(tx.getTranslateY() + y * sy);
+                int pw = (int) Math.round(logW * sx);
+                int ph = (int) Math.round(logH * sy);
+                g2.setRenderingHint(RenderingHints.KEY_INTERPOLATION, RenderingHints.VALUE_INTERPOLATION_BICUBIC);
+                g2.setRenderingHint(RenderingHints.KEY_RENDERING,     RenderingHints.VALUE_RENDER_QUALITY);
+                g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING,  RenderingHints.VALUE_ANTIALIAS_ON);
+                g2.drawImage(img, px, py, pw, ph, null);
+                g2.setTransform(tx);
+            }
+        };
+    }
+
+    private static BufferedImage scaleHQ(BufferedImage src, int targetW, int targetH) {
+        int w = src.getWidth(), h = src.getHeight();
+        if (w == targetW && h == targetH) return src;
+        BufferedImage img = src;
+        while (w > targetW * 2 || h > targetH * 2) {
+            w = Math.max(targetW, w / 2);
+            h = Math.max(targetH, h / 2);
+            img = drawScaled(img, w, h);
+        }
+        return drawScaled(img, targetW, targetH);
+    }
+
+    private static BufferedImage drawScaled(BufferedImage src, int w, int h) {
+        BufferedImage out = new BufferedImage(w, h, BufferedImage.TYPE_INT_ARGB);
+        Graphics2D g2 = out.createGraphics();
+        g2.setRenderingHint(RenderingHints.KEY_INTERPOLATION, RenderingHints.VALUE_INTERPOLATION_BICUBIC);
+        g2.setRenderingHint(RenderingHints.KEY_RENDERING,     RenderingHints.VALUE_RENDER_QUALITY);
+        g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING,  RenderingHints.VALUE_ANTIALIAS_ON);
+        g2.drawImage(src, 0, 0, w, h, null);
+        g2.dispose();
+        return out;
+    }
+
+    public static void modernScrollBar(JScrollPane sp) {
+        modernScrollBarAxis(sp.getVerticalScrollBar(), false);
+    }
+
+    public static void modernHScrollBar(JScrollPane sp) {
+        modernScrollBarAxis(sp.getHorizontalScrollBar(), true);
+    }
+
+    private static void modernScrollBarAxis(JScrollBar sb, boolean horizontal) {
+        if (horizontal) sb.setPreferredSize(new Dimension(0, 6));
+        else            sb.setPreferredSize(new Dimension(6, 0));
+        sb.setUI(new BasicScrollBarUI() {
+            @Override protected void configureScrollBarColors() {
+                thumbColor = new Color(0xCBD5E1);
+                trackColor = new Color(0xF8FAFC);
+            }
+            @Override protected JButton createDecreaseButton(int o) { return noBtn(); }
+            @Override protected JButton createIncreaseButton(int o) { return noBtn(); }
+            private JButton noBtn() { JButton b = new JButton(); b.setPreferredSize(new Dimension(0, 0)); return b; }
+            @Override protected void paintTrack(Graphics g, JComponent c, Rectangle r) {
+                g.setColor(trackColor); g.fillRect(r.x, r.y, r.width, r.height);
+            }
+            @Override protected void paintThumb(Graphics g, JComponent c, Rectangle r) {
+                if (r.isEmpty()) return;
+                Graphics2D g2 = (Graphics2D) g.create();
+                g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+                g2.setColor(isThumbRollover() ? new Color(0x94A3B8) : new Color(0xCBD5E1));
+                if (horizontal) g2.fillRoundRect(r.x + 2, r.y + 1, r.width - 4, r.height - 2, 6, 6);
+                else            g2.fillRoundRect(r.x + 1, r.y + 2, r.width - 2, r.height - 4, 6, 6);
+                g2.dispose();
+            }
+        });
     }
 
     private String roleName(String role) {

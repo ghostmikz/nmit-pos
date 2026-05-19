@@ -14,6 +14,7 @@ public class Product {
     private String unit;
     private String expiryDate;
     private boolean isActive;
+    private boolean hasImage;
 
     public Product() {}
 
@@ -49,6 +50,9 @@ public class Product {
 
     public boolean isActive()               { return isActive; }
     public void setActive(boolean active)   { isActive = active; }
+
+    public boolean isHasImage()                { return hasImage; }
+    public void setHasImage(boolean hasImage)  { this.hasImage = hasImage; }
 
     @Override
     public String toString() { return name; }

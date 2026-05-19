@@ -7,6 +7,8 @@ import model.Product;
 import model.Request;
 import model.Response;
 import model.User;
+import java.util.Base64;
+import java.util.Map;
 
 public class ProductHandler {
 
@@ -61,6 +63,34 @@ public class ProductHandler {
             int productId = ((Double) data.get("productId")).intValue();
             new ProductDAO().delete(productId);
             return Response.ok("Deleted");
+        } catch (Exception e) {
+            return Response.error(e.getMessage());
+        }
+    }
+
+    @SuppressWarnings("unchecked")
+    public static Response getImage(Request req, User user) {
+        try {
+            Map<String, Object> data = (Map<String, Object>) req.getData();
+            int productId = ((Double) data.get("productId")).intValue();
+            byte[] bytes = new ProductDAO().getImage(productId);
+            if (bytes == null) return Response.ok(null);
+            return Response.ok(Base64.getEncoder().encodeToString(bytes));
+        } catch (Exception e) {
+            return Response.error(e.getMessage());
+        }
+    }
+
+    @SuppressWarnings("unchecked")
+    public static Response updateImage(Request req, User user) {
+        if (!user.getRole().equals("admin") && !user.getRole().equals("manager"))
+            return Response.error("Эрх хүрэлцэхгүй");
+        try {
+            Map<String, Object> data = (Map<String, Object>) req.getData();
+            int productId = ((Double) data.get("productId")).intValue();
+            String base64  = (String) data.get("image");
+            new ProductDAO().updateImage(productId, Base64.getDecoder().decode(base64));
+            return Response.ok("Image updated");
         } catch (Exception e) {
             return Response.error(e.getMessage());
         }

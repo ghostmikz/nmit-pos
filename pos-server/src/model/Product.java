@@ -1,7 +1,6 @@
 package model;
 
 import java.math.BigDecimal;
-import java.time.LocalDate;
 
 public class Product {
     private int id;
@@ -13,8 +12,9 @@ public class Product {
     private BigDecimal costPrice;
     private int stockQuantity;
     private String unit;
-    private LocalDate expiryDate;
+    private String expiryDate;
     private boolean isActive;
+    private boolean hasImage;
 
     public Product() {}
 
@@ -45,9 +45,12 @@ public class Product {
     public String getUnit()             { return unit; }
     public void setUnit(String unit)    { this.unit = unit; }
 
-    public LocalDate getExpiryDate()                    { return expiryDate; }
-    public void setExpiryDate(LocalDate expiryDate)     { this.expiryDate = expiryDate; }
+    public String getExpiryDate()                       { return expiryDate; }
+    public void setExpiryDate(String expiryDate)        { this.expiryDate = expiryDate; }
 
     public boolean isActive()               { return isActive; }
     public void setActive(boolean active)   { isActive = active; }
+
+    public boolean isHasImage()                { return hasImage; }
+    public void setHasImage(boolean hasImage)  { this.hasImage = hasImage; }
 }

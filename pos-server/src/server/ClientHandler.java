@@ -56,7 +56,9 @@ public class ClientHandler implements Runnable {
                 case "ADD_PRODUCT"    -> ProductHandler.add(req, user);
                 case "UPDATE_PRODUCT" -> ProductHandler.update(req, user);
                 case "DELETE_PRODUCT" -> ProductHandler.delete(req, user);
-                case "UPDATE_STOCK"   -> ProductHandler.updateStock(req, user);
+                case "UPDATE_STOCK"        -> ProductHandler.updateStock(req, user);
+                case "GET_PRODUCT_IMAGE"   -> ProductHandler.getImage(req, user);
+                case "UPDATE_PRODUCT_IMAGE"-> ProductHandler.updateImage(req, user);
                 case "CREATE_SALE"    -> SaleHandler.create(req, user);
                 case "PROCESS_REFUND" -> SaleHandler.processRefund(req, user);
                 case "GET_REPORT"     -> ReportHandler.getSalesReport(req, user);

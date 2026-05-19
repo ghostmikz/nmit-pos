@@ -1,6 +1,8 @@
 package dao;
 
 import com.google.gson.Gson;
+import com.google.gson.GsonBuilder;
+import com.google.gson.FieldNamingPolicy;
 import model.Sale;
 import model.SaleItem;
 import java.sql.*;
@@ -10,9 +12,13 @@ import java.util.List;
 public class SaleDAO {
 
     private final Gson gson = new Gson();
+    // sp_create_sale reads product_id / unit_price (snake_case) from the JSON
+    private static final Gson SP_GSON = new GsonBuilder()
+            .setFieldNamingPolicy(FieldNamingPolicy.LOWER_CASE_WITH_UNDERSCORES)
+            .create();
 
     public int createSale(Sale sale) throws SQLException {
-        String itemsJson = gson.toJson(sale.getItems());
+        String itemsJson = SP_GSON.toJson(sale.getItems());
         String sql = "CALL sp_create_sale(?,?,?,?,?,?,?,?,?)";
         try (CallableStatement cs = DatabaseConnection.getInstance().prepareCall(sql)) {
             cs.setString(1, sale.getReceiptNumber());
