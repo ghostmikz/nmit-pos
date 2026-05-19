@@ -1,7 +1,6 @@
 package model;
 
 import java.math.BigDecimal;
-import java.time.LocalDateTime;
 import java.util.List;
 
 public class Sale {
@@ -15,7 +14,7 @@ public class Sale {
     private BigDecimal total;
     private String notes;
     private boolean isRefunded;
-    private LocalDateTime createdAt;
+    private String createdAt;
     private List<SaleItem> items;
 
     public Sale() {}
@@ -50,8 +49,8 @@ public class Sale {
     public boolean isRefunded()                 { return isRefunded; }
     public void setRefunded(boolean refunded)   { isRefunded = refunded; }
 
-    public LocalDateTime getCreatedAt()                     { return createdAt; }
-    public void setCreatedAt(LocalDateTime createdAt)       { this.createdAt = createdAt; }
+    public String getCreatedAt()                     { return createdAt; }
+    public void setCreatedAt(String createdAt)       { this.createdAt = createdAt; }
 
     public List<SaleItem> getItems()                { return items; }
     public void setItems(List<SaleItem> items)      { this.items = items; }
