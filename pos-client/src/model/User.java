@@ -6,6 +6,7 @@ public class User {
     private String fullName;
     private String role;
     private String token;
+    private boolean isActive;
 
     public User() {}
 
@@ -24,7 +25,10 @@ public class User {
     public String getToken()                { return token; }
     public void setToken(String token)      { this.token = token; }
 
+    public boolean isActive()               { return isActive; }
+    public void setActive(boolean active)   { isActive = active; }
+
     public boolean isAdmin()    { return "admin".equals(role); }
     public boolean isManager()  { return "manager".equals(role) || isAdmin(); }
-    public boolean isCashier()  { return true; } // all roles access POS
+    public boolean isCashier()  { return true; }
 }

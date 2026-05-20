@@ -9,7 +9,7 @@ public class ProductDAO {
 
     public List<Product> findAll() throws SQLException {
         List<Product> list = new ArrayList<>();
-        String sql = "SELECT id, barcode, product_name, category_id, category_name, price, cost_price, stock_quantity, unit, expiry_date, is_active, has_image FROM view_product_stock ORDER BY product_name";
+        String sql = "SELECT id, barcode, product_name, category_id, category_name, price, cost_price, stock_quantity, unit, expiry_date, is_active, has_image, low_stock_alert FROM view_product_stock ORDER BY product_name";
         try (Statement st = DatabaseConnection.getInstance().createStatement();
              ResultSet rs = st.executeQuery(sql)) {
             while (rs.next()) list.add(mapRow(rs));
@@ -37,7 +37,7 @@ public class ProductDAO {
     }
 
     public int create(Product p) throws SQLException {
-        String sql = "CALL sp_add_product(?,?,?,?,?,?,?,?)";
+        String sql = "CALL sp_add_product(?,?,?,?,?,?,?,?,?)";
         try (CallableStatement cs = DatabaseConnection.getInstance().prepareCall(sql)) {
             cs.setString(1, p.getBarcode());
             cs.setString(2, p.getName());
@@ -47,13 +47,14 @@ public class ProductDAO {
             cs.setInt(6, p.getStockQuantity());
             cs.setString(7, p.getUnit());
             cs.setObject(8, p.getExpiryDate());
+            cs.setInt(9, p.getLowStockAlert() > 0 ? p.getLowStockAlert() : 10);
             ResultSet rs = cs.executeQuery();
             return rs.next() ? rs.getInt("product_id") : -1;
         }
     }
 
     public void update(Product p) throws SQLException {
-        String sql = "CALL sp_update_product(?,?,?,?,?,?,?,?)";
+        String sql = "CALL sp_update_product(?,?,?,?,?,?,?,?,?)";
         try (CallableStatement cs = DatabaseConnection.getInstance().prepareCall(sql)) {
             cs.setInt(1, p.getId());
             cs.setString(2, p.getBarcode());
@@ -63,6 +64,7 @@ public class ProductDAO {
             cs.setBigDecimal(6, p.getCostPrice());
             cs.setString(7, p.getUnit());
             cs.setObject(8, p.getExpiryDate());
+            cs.setInt(9, p.getLowStockAlert() > 0 ? p.getLowStockAlert() : 10);
             cs.execute();
         }
     }
@@ -117,6 +119,7 @@ public class ProductDAO {
         p.setExpiryDate(rs.getDate("expiry_date") != null ? rs.getDate("expiry_date").toString() : null);
         p.setActive(rs.getBoolean("is_active"));
         p.setHasImage(rs.getBoolean("has_image"));
+        p.setLowStockAlert(rs.getInt("low_stock_alert"));
         return p;
     }
 }

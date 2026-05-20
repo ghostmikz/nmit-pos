@@ -15,6 +15,7 @@ public class Product {
     private String expiryDate;
     private boolean isActive;
     private boolean hasImage;
+    private int lowStockAlert;
 
     public Product() {}
 
@@ -53,6 +54,9 @@ public class Product {
 
     public boolean isHasImage()                { return hasImage; }
     public void setHasImage(boolean hasImage)  { this.hasImage = hasImage; }
+
+    public int getLowStockAlert()                   { return lowStockAlert; }
+    public void setLowStockAlert(int v)             { this.lowStockAlert = v; }
 
     @Override
     public String toString() { return name; }
