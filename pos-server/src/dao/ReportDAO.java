@@ -1,7 +1,9 @@
 package dao;
 
 import java.sql.*;
+import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
 public class ReportDAO {
@@ -21,27 +23,69 @@ public class ReportDAO {
         return result;
     }
 
-    public ResultSet getWeeklySales() throws SQLException {
-        String sql = "SELECT sale_date, total_transactions, total_revenue FROM view_weekly_sales";
-        Statement st = DatabaseConnection.getInstance().createStatement();
-        return st.executeQuery(sql);
+    public List<Map<String, Object>> getWeeklySales() throws SQLException {
+        List<Map<String, Object>> list = new ArrayList<>();
+        String sql = "SELECT sale_date, total_transactions, total_revenue FROM view_weekly_sales ORDER BY sale_date ASC";
+        try (Statement st = DatabaseConnection.getInstance().createStatement();
+             ResultSet rs = st.executeQuery(sql)) {
+            while (rs.next()) {
+                Map<String, Object> row = new HashMap<>();
+                row.put("saleDate",          rs.getString("sale_date"));
+                row.put("totalTransactions", rs.getInt("total_transactions"));
+                row.put("totalRevenue",      rs.getBigDecimal("total_revenue"));
+                list.add(row);
+            }
+        }
+        return list;
     }
 
-    public ResultSet getTopProducts() throws SQLException {
+    public List<Map<String, Object>> getTopProducts() throws SQLException {
+        List<Map<String, Object>> list = new ArrayList<>();
         String sql = "SELECT product_name, category_name, total_sold, total_revenue FROM view_top_products LIMIT 10";
-        Statement st = DatabaseConnection.getInstance().createStatement();
-        return st.executeQuery(sql);
+        try (Statement st = DatabaseConnection.getInstance().createStatement();
+             ResultSet rs = st.executeQuery(sql)) {
+            while (rs.next()) {
+                Map<String, Object> row = new HashMap<>();
+                row.put("productName",  rs.getString("product_name"));
+                row.put("categoryName", rs.getString("category_name"));
+                row.put("totalSold",    rs.getInt("total_sold"));
+                row.put("totalRevenue", rs.getBigDecimal("total_revenue"));
+                list.add(row);
+            }
+        }
+        return list;
     }
 
-    public ResultSet getPaymentSummary() throws SQLException {
+    public List<Map<String, Object>> getLowStock() throws SQLException {
+        List<Map<String, Object>> list = new ArrayList<>();
+        String sql = "SELECT product_name, category_name, stock_quantity, unit FROM view_low_stock LIMIT 10";
+        try (Statement st = DatabaseConnection.getInstance().createStatement();
+             ResultSet rs = st.executeQuery(sql)) {
+            while (rs.next()) {
+                Map<String, Object> row = new HashMap<>();
+                row.put("productName",   rs.getString("product_name"));
+                row.put("categoryName",  rs.getString("category_name"));
+                row.put("stockQuantity", rs.getInt("stock_quantity"));
+                row.put("unit",          rs.getString("unit"));
+                list.add(row);
+            }
+        }
+        return list;
+    }
+
+    public List<Map<String, Object>> getPaymentSummary() throws SQLException {
+        List<Map<String, Object>> list = new ArrayList<>();
         String sql = "SELECT payment_method, total_transactions, total_revenue FROM view_payment_summary";
-        Statement st = DatabaseConnection.getInstance().createStatement();
-        return st.executeQuery(sql);
-    }
-
-    public ResultSet getDiscountUsage() throws SQLException {
-        String sql = "SELECT discount_name, type, value, times_used, total_saved FROM view_discount_usage";
-        Statement st = DatabaseConnection.getInstance().createStatement();
-        return st.executeQuery(sql);
+        try (Statement st = DatabaseConnection.getInstance().createStatement();
+             ResultSet rs = st.executeQuery(sql)) {
+            while (rs.next()) {
+                Map<String, Object> row = new HashMap<>();
+                row.put("paymentMethod",     rs.getString("payment_method"));
+                row.put("totalTransactions", rs.getInt("total_transactions"));
+                row.put("totalRevenue",      rs.getBigDecimal("total_revenue"));
+                list.add(row);
+            }
+        }
+        return list;
     }
 }

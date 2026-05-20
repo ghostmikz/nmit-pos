@@ -46,19 +46,30 @@ public class SaleDAO {
         }
     }
 
-    public List<Sale> getSalesReport() throws SQLException {
+    public List<Sale> getSalesReport(String startDate, String endDate) throws SQLException {
         List<Sale> list = new ArrayList<>();
-        String sql = "SELECT id, receipt_number, cashier_name, payment_method, discount_name, subtotal, discount_amount, total, is_refunded, created_at FROM view_sales_report ORDER BY created_at DESC";
-        try (Statement st = DatabaseConnection.getInstance().createStatement();
-             ResultSet rs = st.executeQuery(sql)) {
+        String sql = "SELECT id, receipt_number, cashier_name, payment_method, discount_name, " +
+                     "subtotal, discount_amount, total, is_refunded, created_at " +
+                     "FROM view_sales_report " +
+                     "WHERE (? IS NULL OR DATE(created_at) >= ?) " +
+                     "  AND (? IS NULL OR DATE(created_at) <= ?) " +
+                     "ORDER BY created_at DESC";
+        try (PreparedStatement ps = DatabaseConnection.getInstance().prepareStatement(sql)) {
+            ps.setString(1, startDate); ps.setString(2, startDate);
+            ps.setString(3, endDate);   ps.setString(4, endDate);
+            ResultSet rs = ps.executeQuery();
             while (rs.next()) {
                 Sale s = new Sale();
                 s.setId(rs.getInt("id"));
                 s.setReceiptNumber(rs.getString("receipt_number"));
-                s.setTotal(rs.getBigDecimal("total"));
+                s.setCashierName(rs.getString("cashier_name"));
+                s.setPaymentMethod(rs.getString("payment_method"));
+                s.setDiscountName(rs.getString("discount_name"));
                 s.setSubtotal(rs.getBigDecimal("subtotal"));
                 s.setDiscountAmount(rs.getBigDecimal("discount_amount"));
+                s.setTotal(rs.getBigDecimal("total"));
                 s.setRefunded(rs.getBoolean("is_refunded"));
+                s.setCreatedAt(rs.getString("created_at"));
                 list.add(s);
             }
         }

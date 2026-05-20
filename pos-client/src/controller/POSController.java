@@ -100,6 +100,7 @@ public class POSController {
                         String receipt = res.getAsJsonObject("data").get("receiptNumber").getAsString();
                         SwingUtilities.invokeLater(() -> {
                             onSuccess.run();
+                            loadData(); // refresh stock counts in POS product grid
                             JOptionPane.showMessageDialog(view,
                                     "Баримт: " + receipt, "Төлбөр амжилттай",
                                     JOptionPane.INFORMATION_MESSAGE);

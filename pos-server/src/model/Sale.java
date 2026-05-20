@@ -15,6 +15,9 @@ public class Sale {
     private String notes;
     private boolean isRefunded;
     private String createdAt;
+    private String cashierName;
+    private String paymentMethod;
+    private String discountName;
     private List<SaleItem> items;
 
     public Sale() {}
@@ -51,6 +54,15 @@ public class Sale {
 
     public String getCreatedAt()                     { return createdAt; }
     public void setCreatedAt(String createdAt)       { this.createdAt = createdAt; }
+
+    public String getCashierName()                       { return cashierName; }
+    public void setCashierName(String cashierName)       { this.cashierName = cashierName; }
+
+    public String getPaymentMethod()                     { return paymentMethod; }
+    public void setPaymentMethod(String paymentMethod)   { this.paymentMethod = paymentMethod; }
+
+    public String getDiscountName()                      { return discountName; }
+    public void setDiscountName(String discountName)     { this.discountName = discountName; }
 
     public List<SaleItem> getItems()                { return items; }
     public void setItems(List<SaleItem> items)      { this.items = items; }

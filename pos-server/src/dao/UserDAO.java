@@ -40,6 +40,23 @@ public class UserDAO {
         }
     }
 
+    public void update(int id, String fullName, String role, String password) throws SQLException {
+        if (password != null && !password.isBlank()) {
+            String sql = "UPDATE users SET full_name=?, role=?, password_hash=? WHERE id=?";
+            try (PreparedStatement ps = DatabaseConnection.getInstance().prepareStatement(sql)) {
+                ps.setString(1, fullName); ps.setString(2, role);
+                ps.setString(3, password); ps.setInt(4, id);
+                ps.executeUpdate();
+            }
+        } else {
+            String sql = "UPDATE users SET full_name=?, role=? WHERE id=?";
+            try (PreparedStatement ps = DatabaseConnection.getInstance().prepareStatement(sql)) {
+                ps.setString(1, fullName); ps.setString(2, role); ps.setInt(3, id);
+                ps.executeUpdate();
+            }
+        }
+    }
+
     public void setActive(int userId, boolean active) throws SQLException {
         String sql = "UPDATE users SET is_active = ? WHERE id = ?";
         try (PreparedStatement ps = DatabaseConnection.getInstance().prepareStatement(sql)) {

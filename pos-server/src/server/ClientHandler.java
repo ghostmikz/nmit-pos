@@ -1,10 +1,12 @@
 package server;
 
 import com.google.gson.Gson;
+import handler.CategoryHandler;
 import handler.LoginHandler;
 import handler.ProductHandler;
 import handler.ReportHandler;
 import handler.SaleHandler;
+import handler.UserHandler;
 import model.Request;
 import model.Response;
 import model.User;
@@ -52,7 +54,10 @@ public class ClientHandler implements Runnable {
             return switch (action) {
                 case "LOGOUT"         -> LoginHandler.logout(req);
                 case "GET_PRODUCTS"   -> ProductHandler.getAll(req, user);
-                case "GET_CATEGORIES" -> ProductHandler.getCategories(req, user);
+                case "GET_CATEGORIES"    -> CategoryHandler.getAll(req, user);
+                case "ADD_CATEGORY"      -> CategoryHandler.add(req, user);
+                case "UPDATE_CATEGORY"   -> CategoryHandler.update(req, user);
+                case "DELETE_CATEGORY"   -> CategoryHandler.delete(req, user);
                 case "ADD_PRODUCT"    -> ProductHandler.add(req, user);
                 case "UPDATE_PRODUCT" -> ProductHandler.update(req, user);
                 case "DELETE_PRODUCT" -> ProductHandler.delete(req, user);
@@ -61,6 +66,10 @@ public class ClientHandler implements Runnable {
                 case "UPDATE_PRODUCT_IMAGE"-> ProductHandler.updateImage(req, user);
                 case "CREATE_SALE"    -> SaleHandler.create(req, user);
                 case "PROCESS_REFUND" -> SaleHandler.processRefund(req, user);
+                case "GET_USERS"       -> UserHandler.getAll(req, user);
+                case "ADD_USER"        -> UserHandler.add(req, user);
+                case "UPDATE_USER"     -> UserHandler.update(req, user);
+                case "SET_USER_ACTIVE" -> UserHandler.setActive(req, user);
                 case "GET_REPORT"     -> ReportHandler.getSalesReport(req, user);
                 case "GET_DASHBOARD"  -> ReportHandler.getDashboard(req, user);
                 default               -> Response.error("Unknown action: " + action);
