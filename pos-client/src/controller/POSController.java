@@ -4,6 +4,7 @@ import client.SocketClient;
 import com.google.gson.Gson;
 import com.google.gson.JsonObject;
 import com.google.gson.reflect.TypeToken;
+import i18n.I18n;
 import model.*;
 import view.panels.POSPanel;
 
@@ -47,7 +48,7 @@ public class POSController {
                         products = GSON.fromJson(r2.get("data"), new TypeToken<List<Product>>(){}.getType());
 
                 } catch (Exception e) {
-                    error = "Серверт холбогдож чадсангүй";
+                    error = e.getMessage();
                 }
                 return null;
             }
@@ -100,9 +101,10 @@ public class POSController {
                         String receipt = res.getAsJsonObject("data").get("receiptNumber").getAsString();
                         SwingUtilities.invokeLater(() -> {
                             onSuccess.run();
-                            loadData(); // refresh stock counts in POS product grid
+                            loadData();
                             JOptionPane.showMessageDialog(view,
-                                    "Баримт: " + receipt, "Төлбөр амжилттай",
+                                    I18n.t("pos.receipt.prefix") + " " + receipt,
+                                    I18n.t("pos.success"),
                                     JOptionPane.INFORMATION_MESSAGE);
                         });
                     } else {
@@ -110,7 +112,7 @@ public class POSController {
                         SwingUtilities.invokeLater(() -> view.showError(msg));
                     }
                 } catch (Exception e) {
-                    SwingUtilities.invokeLater(() -> view.showError("Алдаа: " + e.getMessage()));
+                    SwingUtilities.invokeLater(() -> view.showError(e.getMessage()));
                 }
             }
         }.execute();

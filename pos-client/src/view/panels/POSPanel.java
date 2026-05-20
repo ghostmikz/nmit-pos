@@ -79,6 +79,7 @@ public class POSPanel extends JPanel implements LanguageListener {
     private JLabel     cartTitleLabel;
     private JButton    clearBtn;
     private JButton    payBtnCash, payBtnCard, payBtnQPay, payBtnMonpay;
+    private javax.swing.Timer clockTimer;
 
     public POSPanel(User user) {
         this.user = user;
@@ -885,8 +886,14 @@ public class POSPanel extends JPanel implements LanguageListener {
     // ── Clock ─────────────────────────────────────────────────────────────────
 
     private void startClock() {
-        javax.swing.Timer t = new javax.swing.Timer(1000, e -> clockLabel.setText(LocalTime.now().format(CLK)));
-        t.setInitialDelay(0);
-        t.start();
+        clockTimer = new javax.swing.Timer(1000, e -> clockLabel.setText(LocalTime.now().format(CLK)));
+        clockTimer.setInitialDelay(0);
+        clockTimer.start();
+    }
+
+    @Override
+    public void removeNotify() {
+        super.removeNotify();
+        if (clockTimer != null) clockTimer.stop();
     }
 }

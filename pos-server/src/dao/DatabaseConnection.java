@@ -9,22 +9,28 @@ public class DatabaseConnection {
     private static final String USER     = "root";
     private static final String PASSWORD = "0312";
 
-    private static Connection instance;
+    // One connection per server thread — avoids shared-state concurrency bugs
+    private static final ThreadLocal<Connection> THREAD_CONN = new ThreadLocal<>();
 
     private DatabaseConnection() {}
 
     public static Connection getInstance() throws SQLException {
-        if (instance == null || instance.isClosed()) {
-            instance = DriverManager.getConnection(URL, USER, PASSWORD);
+        Connection c = THREAD_CONN.get();
+        if (c == null || c.isClosed()) {
+            c = DriverManager.getConnection(URL, USER, PASSWORD);
+            THREAD_CONN.set(c);
         }
-        return instance;
+        return c;
     }
 
     public static void close() {
+        Connection c = THREAD_CONN.get();
         try {
-            if (instance != null && !instance.isClosed()) instance.close();
+            if (c != null && !c.isClosed()) c.close();
         } catch (SQLException e) {
             e.printStackTrace();
+        } finally {
+            THREAD_CONN.remove();
         }
     }
 }

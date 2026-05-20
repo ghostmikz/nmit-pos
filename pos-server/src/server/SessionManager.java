@@ -24,8 +24,4 @@ public class SessionManager {
     public static void removeSession(String token) {
         sessions.remove(token);
     }
-
-    public static boolean isValid(String token) {
-        return token != null && sessions.containsKey(token);
-    }
 }

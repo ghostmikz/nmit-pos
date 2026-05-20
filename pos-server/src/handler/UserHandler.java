@@ -79,4 +79,18 @@ public class UserHandler {
             return Response.error(e.getMessage());
         }
     }
+
+    public static Response delete(Request req, User caller) {
+        if (!"admin".equals(caller.getRole())) return Response.error("Access denied");
+        try {
+            @SuppressWarnings("unchecked")
+            Map<String, Object> d = GSON.fromJson(req.getData().toString(), Map.class);
+            int id = ((Number) d.get("id")).intValue();
+            if (id == caller.getId()) return Response.error("Cannot delete your own account");
+            DAO.delete(id);
+            return Response.ok(null);
+        } catch (Exception e) {
+            return Response.error(e.getMessage());
+        }
+    }
 }

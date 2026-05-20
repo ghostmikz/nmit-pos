@@ -13,13 +13,19 @@ public class DashboardController {
 
     private final DashboardPanel view;
     private final User           currentUser;
-    private final Gson           gson = new Gson();
+    private static final Gson    GSON = new Gson();
 
     public DashboardController(DashboardPanel view, User currentUser) {
         this.view        = view;
         this.currentUser = currentUser;
         view.setDataLoader(this::loadData);
         loadData();
+        view.addHierarchyListener(e -> {
+            if ((e.getChangeFlags() & java.awt.event.HierarchyEvent.SHOWING_CHANGED) != 0
+                    && view.isShowing()) {
+                loadData();
+            }
+        });
     }
 
     private void loadData() {
@@ -30,7 +36,7 @@ public class DashboardController {
                 JsonObject resp = SocketClient.getInstance().send("GET_DASHBOARD", currentUser.getToken());
                 if (!"OK".equals(resp.get("status").getAsString()))
                     throw new Exception(resp.has("message") ? resp.get("message").getAsString() : "Error");
-                return gson.fromJson(resp.get("data"), Map.class);
+                return GSON.fromJson(resp.get("data"), Map.class);
             }
 
             @Override

@@ -86,7 +86,7 @@ public class SettingsDialog extends JDialog {
         btnRow.setBackground(BG);
         btnRow.setMaximumSize(new Dimension(Integer.MAX_VALUE, 48));
 
-        JButton cancelBtn = new JButton("Болих");
+        JButton cancelBtn = new JButton(I18n.t("common.cancel"));
         cancelBtn.setFont(new Font("Dialog", Font.PLAIN, 15));
         cancelBtn.setBackground(WHITE);
         cancelBtn.setForeground(GRAY);
@@ -95,7 +95,7 @@ public class SettingsDialog extends JDialog {
         cancelBtn.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
         cancelBtn.addActionListener(e -> dispose());
 
-        JButton saveBtn = new JButton("Хадгалах");
+        JButton saveBtn = new JButton(I18n.t("common.save"));
         saveBtn.setFont(new Font("Dialog", Font.BOLD, 15));
         saveBtn.setBackground(ACCENT);
         saveBtn.setForeground(WHITE);
@@ -118,7 +118,7 @@ public class SettingsDialog extends JDialog {
         String portText = portField.getText().trim();
 
         if (host.isEmpty()) {
-            JOptionPane.showMessageDialog(this, "IP хаяг хоосон байна", "Алдаа", JOptionPane.ERROR_MESSAGE);
+            JOptionPane.showMessageDialog(this, "Host is required", I18n.t("common.error"), JOptionPane.ERROR_MESSAGE);
             return;
         }
         try {
@@ -127,7 +127,7 @@ public class SettingsDialog extends JDialog {
             AppSettings.setServerHost(host);
             AppSettings.setServerPort(port);
         } catch (NumberFormatException e) {
-            JOptionPane.showMessageDialog(this, "Порт буруу байна (1–65535)", "Алдаа", JOptionPane.ERROR_MESSAGE);
+            JOptionPane.showMessageDialog(this, "Port must be 1–65535", I18n.t("common.error"), JOptionPane.ERROR_MESSAGE);
             return;
         }
 

@@ -25,6 +25,7 @@ public class UsersController {
         this.currentUser = currentUser;
         view.setUserSaver(this::saveUser);
         view.setActiveToggler(this::toggleActive);
+        view.setUserDeleter(this::deleteUser);
         loadUsers();
     }
 
@@ -80,6 +81,29 @@ public class UsersController {
                     }
                 } catch (Exception e) {
                     SwingUtilities.invokeLater(() -> view.showError(e.getMessage()));
+                }
+            }
+        }.execute();
+    }
+
+    private void deleteUser(int userId, Runnable onSuccess, Consumer<String> onError) {
+        Map<String, Object> data = new HashMap<>();
+        data.put("id", userId);
+
+        new SwingWorker<com.google.gson.JsonObject, Void>() {
+            @Override protected com.google.gson.JsonObject doInBackground() throws Exception {
+                return SocketClient.getInstance().send("DELETE_USER", currentUser.getToken(), data);
+            }
+            @Override protected void done() {
+                try {
+                    var res = get();
+                    if ("OK".equals(res.get("status").getAsString())) {
+                        SwingUtilities.invokeLater(() -> { onSuccess.run(); loadUsers(); });
+                    } else {
+                        SwingUtilities.invokeLater(() -> onError.accept(res.get("message").getAsString()));
+                    }
+                } catch (Exception e) {
+                    SwingUtilities.invokeLater(() -> onError.accept(e.getMessage()));
                 }
             }
         }.execute();

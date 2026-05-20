@@ -35,6 +35,7 @@ public class ClientHandler implements Runnable {
         } catch (IOException e) {
             System.out.println("Client disconnected: " + socket.getInetAddress());
         } finally {
+            dao.DatabaseConnection.close();
             try { socket.close(); } catch (IOException ignored) {}
         }
     }
@@ -70,6 +71,7 @@ public class ClientHandler implements Runnable {
                 case "ADD_USER"        -> UserHandler.add(req, user);
                 case "UPDATE_USER"     -> UserHandler.update(req, user);
                 case "SET_USER_ACTIVE" -> UserHandler.setActive(req, user);
+                case "DELETE_USER"     -> UserHandler.delete(req, user);
                 case "GET_REPORT"     -> ReportHandler.getSalesReport(req, user);
                 case "GET_DASHBOARD"  -> ReportHandler.getDashboard(req, user);
                 default               -> Response.error("Unknown action: " + action);

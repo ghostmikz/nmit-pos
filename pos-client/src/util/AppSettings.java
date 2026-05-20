@@ -37,6 +37,6 @@ public class AppSettings {
     public static String getServerHost()            { return get("server.host", "localhost"); }
     public static void   setServerHost(String host) { set("server.host", host); }
 
-    public static int    getServerPort()            { return Integer.parseInt(get("server.port", "9090")); }
+    public static int    getServerPort()            { try { return Integer.parseInt(get("server.port", "9090")); } catch (NumberFormatException e) { return 9090; } }
     public static void   setServerPort(int port)    { set("server.port", String.valueOf(port)); }
 }

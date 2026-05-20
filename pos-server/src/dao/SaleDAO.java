@@ -11,8 +11,7 @@ import java.util.List;
 
 public class SaleDAO {
 
-    private final Gson gson = new Gson();
-    // sp_create_sale reads product_id / unit_price (snake_case) from the JSON
+    // sp_create_sale expects product_id / unit_price (snake_case) in the JSON items array
     private static final Gson SP_GSON = new GsonBuilder()
             .setFieldNamingPolicy(FieldNamingPolicy.LOWER_CASE_WITH_UNDERSCORES)
             .create();

@@ -73,7 +73,6 @@ public class ReportsPanel extends JPanel implements LanguageListener {
         setLayout(new BorderLayout());
         setBackground(BG);
         build();
-        I18n.addListener(this);
     }
 
     public void setReportLoader(ReportLoader loader) { this.reportLoader = loader; }

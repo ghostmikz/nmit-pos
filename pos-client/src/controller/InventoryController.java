@@ -77,8 +77,6 @@ public class InventoryController {
         }.execute();
     }
 
-    private void reload() { loadData(); }
-
     // ── Product save (add or update) ──────────────────────────────────────────
 
     private void saveProduct(Product p, byte[] imageBytes, boolean imageChanged, Runnable onSuccess) {
@@ -107,7 +105,7 @@ public class InventoryController {
                     if (imageChanged && imageBytes != null && targetId > 0) {
                         uploadImage(targetId, imageBytes, onSuccess);
                     } else {
-                        SwingUtilities.invokeLater(() -> { onSuccess.run(); reload(); });
+                        SwingUtilities.invokeLater(() -> { onSuccess.run(); loadData(); });
                     }
                 } catch (Exception e) {
                     SwingUtilities.invokeLater(() -> view.showError(e.getMessage()));
@@ -129,7 +127,7 @@ public class InventoryController {
                 try {
                     JsonObject res = get();
                     if ("OK".equals(res.get("status").getAsString())) {
-                        SwingUtilities.invokeLater(() -> { onSuccess.run(); reload(); });
+                        SwingUtilities.invokeLater(() -> { onSuccess.run(); loadData(); });
                     } else {
                         SwingUtilities.invokeLater(() -> view.showError(res.get("message").getAsString()));
                     }
@@ -170,7 +168,7 @@ public class InventoryController {
                 return null;
             }
             @Override protected void done() {
-                SwingUtilities.invokeLater(() -> { onSuccess.run(); reload(); });
+                SwingUtilities.invokeLater(() -> { onSuccess.run(); loadData(); });
             }
         }.execute();
     }
@@ -191,7 +189,7 @@ public class InventoryController {
                 try {
                     JsonObject res = get();
                     if ("OK".equals(res.get("status").getAsString())) {
-                        SwingUtilities.invokeLater(() -> { onSuccess.run(); reload(); });
+                        SwingUtilities.invokeLater(() -> { onSuccess.run(); loadData(); });
                     } else {
                         SwingUtilities.invokeLater(() -> view.showError(res.get("message").getAsString()));
                     }
@@ -215,7 +213,7 @@ public class InventoryController {
                 try {
                     JsonObject res = get();
                     if ("OK".equals(res.get("status").getAsString())) {
-                        SwingUtilities.invokeLater(() -> { onSuccess.run(); reload(); });
+                        SwingUtilities.invokeLater(() -> { onSuccess.run(); loadData(); });
                     } else {
                         SwingUtilities.invokeLater(() -> onError.accept(res.get("message").getAsString()));
                     }

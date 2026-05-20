@@ -21,9 +21,9 @@ public class LoginHandler {
             UserDAO dao = new UserDAO();
             User user = dao.findByUsername(username);
 
-            if (user == null) return Response.error("Хэрэглэгч олдсонгүй");
+            if (user == null) return Response.error("User not found");
 
-            if (!user.getPasswordHash().equals(password)) return Response.error("Нууц үг буруу");
+            if (!user.getPasswordHash().equals(password)) return Response.error("Invalid password");
 
             String token = SessionManager.createSession(user);
 

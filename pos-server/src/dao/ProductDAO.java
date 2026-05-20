@@ -17,25 +17,6 @@ public class ProductDAO {
         return list;
     }
 
-    public List<Product> findLowStock() throws SQLException {
-        List<Product> list = new ArrayList<>();
-        String sql = "SELECT id, barcode, product_name, category_name, stock_quantity, unit FROM view_low_stock";
-        try (Statement st = DatabaseConnection.getInstance().createStatement();
-             ResultSet rs = st.executeQuery(sql)) {
-            while (rs.next()) {
-                Product p = new Product();
-                p.setId(rs.getInt("id"));
-                p.setBarcode(rs.getString("barcode"));
-                p.setName(rs.getString("product_name"));
-                p.setCategoryName(rs.getString("category_name"));
-                p.setStockQuantity(rs.getInt("stock_quantity"));
-                p.setUnit(rs.getString("unit"));
-                list.add(p);
-            }
-        }
-        return list;
-    }
-
     public int create(Product p) throws SQLException {
         String sql = "CALL sp_add_product(?,?,?,?,?,?,?,?,?)";
         try (CallableStatement cs = DatabaseConnection.getInstance().prepareCall(sql)) {

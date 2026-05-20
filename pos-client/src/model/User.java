@@ -30,5 +30,5 @@ public class User {
 
     public boolean isAdmin()    { return "admin".equals(role); }
     public boolean isManager()  { return "manager".equals(role) || isAdmin(); }
-    public boolean isCashier()  { return true; }
+    public boolean isCashier()  { return "cashier".equals(role); }
 }

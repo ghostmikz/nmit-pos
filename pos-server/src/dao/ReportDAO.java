@@ -73,19 +73,4 @@ public class ReportDAO {
         return list;
     }
 
-    public List<Map<String, Object>> getPaymentSummary() throws SQLException {
-        List<Map<String, Object>> list = new ArrayList<>();
-        String sql = "SELECT payment_method, total_transactions, total_revenue FROM view_payment_summary";
-        try (Statement st = DatabaseConnection.getInstance().createStatement();
-             ResultSet rs = st.executeQuery(sql)) {
-            while (rs.next()) {
-                Map<String, Object> row = new HashMap<>();
-                row.put("paymentMethod",     rs.getString("payment_method"));
-                row.put("totalTransactions", rs.getInt("total_transactions"));
-                row.put("totalRevenue",      rs.getBigDecimal("total_revenue"));
-                list.add(row);
-            }
-        }
-        return list;
-    }
 }

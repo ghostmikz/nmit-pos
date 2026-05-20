@@ -12,16 +12,16 @@ import java.util.Map;
 
 public class SaleHandler {
 
-    private static final Gson gson = new Gson();
+    private static final Gson GSON = new Gson();
 
     public static Response create(Request req, User user) {
         try {
-            Sale sale = gson.fromJson(gson.toJson(req.getData()), Sale.class);
+            Sale sale = GSON.fromJson(GSON.toJson(req.getData()), Sale.class);
             sale.setUserId(user.getId());
 
             // Generate receipt number: RCP-YYYYMMDD-HHMMSS
             String receipt = "RCP-" + java.time.LocalDateTime.now()
-                    .format(java.time.format.DateTimeFormatter.ofPattern("yyyyMMdd-HHmmss"));
+                    .format(java.time.format.DateTimeFormatter.ofPattern("yyyyMMdd-HHmmssSSS"));
             sale.setReceiptNumber(receipt);
 
             int saleId = new SaleDAO().createSale(sale);
@@ -33,7 +33,7 @@ public class SaleHandler {
 
     public static Response processRefund(Request req, User user) {
         if (!user.getRole().equals("admin") && !user.getRole().equals("manager"))
-            return Response.error("Зөвхөн менежер буцаалт хийх боломжтой");
+            return Response.error("Access denied");
         try {
             @SuppressWarnings("unchecked")
             Map<String, Object> data = (Map<String, Object>) req.getData();

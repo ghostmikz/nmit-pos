@@ -27,42 +27,39 @@ public class UserDAO {
     }
 
     public int create(User u) throws SQLException {
-        String sql = "INSERT INTO users (username, password_hash, full_name, role, is_active, created_by) VALUES (?,?,?,?,1,?)";
-        try (PreparedStatement ps = DatabaseConnection.getInstance().prepareStatement(sql, Statement.RETURN_GENERATED_KEYS)) {
-            ps.setString(1, u.getUsername());
-            ps.setString(2, u.getPasswordHash());
-            ps.setString(3, u.getFullName());
-            ps.setString(4, u.getRole());
-            ps.setObject(5, u.getCreatedBy());
-            ps.executeUpdate();
-            ResultSet keys = ps.getGeneratedKeys();
-            return keys.next() ? keys.getInt(1) : -1;
+        try (CallableStatement cs = DatabaseConnection.getInstance().prepareCall("{CALL sp_add_user(?,?,?,?,?)}")) {
+            cs.setString(1, u.getUsername());
+            cs.setString(2, u.getPasswordHash());
+            cs.setString(3, u.getFullName());
+            cs.setString(4, u.getRole());
+            cs.setObject(5, u.getCreatedBy());
+            ResultSet rs = cs.executeQuery();
+            return rs.next() ? rs.getInt("user_id") : -1;
         }
     }
 
     public void update(int id, String fullName, String role, String password) throws SQLException {
-        if (password != null && !password.isBlank()) {
-            String sql = "UPDATE users SET full_name=?, role=?, password_hash=? WHERE id=?";
-            try (PreparedStatement ps = DatabaseConnection.getInstance().prepareStatement(sql)) {
-                ps.setString(1, fullName); ps.setString(2, role);
-                ps.setString(3, password); ps.setInt(4, id);
-                ps.executeUpdate();
-            }
-        } else {
-            String sql = "UPDATE users SET full_name=?, role=? WHERE id=?";
-            try (PreparedStatement ps = DatabaseConnection.getInstance().prepareStatement(sql)) {
-                ps.setString(1, fullName); ps.setString(2, role); ps.setInt(3, id);
-                ps.executeUpdate();
-            }
+        try (CallableStatement cs = DatabaseConnection.getInstance().prepareCall("{CALL sp_update_user(?,?,?,?)}")) {
+            cs.setInt(1, id);
+            cs.setString(2, fullName);
+            cs.setString(3, role);
+            cs.setString(4, (password != null && !password.isBlank()) ? password : null);
+            cs.execute();
+        }
+    }
+
+    public void delete(int userId) throws SQLException {
+        try (CallableStatement cs = DatabaseConnection.getInstance().prepareCall("{CALL sp_delete_user(?)}")) {
+            cs.setInt(1, userId);
+            cs.execute();
         }
     }
 
     public void setActive(int userId, boolean active) throws SQLException {
-        String sql = "UPDATE users SET is_active = ? WHERE id = ?";
-        try (PreparedStatement ps = DatabaseConnection.getInstance().prepareStatement(sql)) {
-            ps.setBoolean(1, active);
-            ps.setInt(2, userId);
-            ps.executeUpdate();
+        try (CallableStatement cs = DatabaseConnection.getInstance().prepareCall("{CALL sp_set_user_active(?,?)}")) {
+            cs.setInt(1, userId);
+            cs.setBoolean(2, active);
+            cs.execute();
         }
     }
 

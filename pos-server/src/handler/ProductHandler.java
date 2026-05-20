@@ -1,7 +1,6 @@
 package handler;
 
 import com.google.gson.Gson;
-import dao.CategoryDAO;
 import dao.ProductDAO;
 import model.Product;
 import model.Request;
@@ -12,7 +11,7 @@ import java.util.Map;
 
 public class ProductHandler {
 
-    private static final Gson gson = new Gson();
+    private static final Gson GSON = new Gson();
 
     public static Response getAll(Request req, User user) {
         try {
@@ -22,19 +21,11 @@ public class ProductHandler {
         }
     }
 
-    public static Response getCategories(Request req, User user) {
-        try {
-            return Response.ok(new CategoryDAO().findAll());
-        } catch (Exception e) {
-            return Response.error(e.getMessage());
-        }
-    }
-
     public static Response add(Request req, User user) {
         if (!user.getRole().equals("admin") && !user.getRole().equals("manager"))
-            return Response.error("Эрх хүрэлцэхгүй");
+            return Response.error("Access denied");
         try {
-            Product p = gson.fromJson(gson.toJson(req.getData()), Product.class);
+            Product p = GSON.fromJson(GSON.toJson(req.getData()), Product.class);
             int id = new ProductDAO().create(p);
             return Response.ok(id);
         } catch (Exception e) {
@@ -44,9 +35,9 @@ public class ProductHandler {
 
     public static Response update(Request req, User user) {
         if (!user.getRole().equals("admin") && !user.getRole().equals("manager"))
-            return Response.error("Эрх хүрэлцэхгүй");
+            return Response.error("Access denied");
         try {
-            Product p = gson.fromJson(gson.toJson(req.getData()), Product.class);
+            Product p = GSON.fromJson(GSON.toJson(req.getData()), Product.class);
             new ProductDAO().update(p);
             return Response.ok("Updated");
         } catch (Exception e) {
@@ -56,7 +47,7 @@ public class ProductHandler {
 
     public static Response delete(Request req, User user) {
         if (!user.getRole().equals("admin"))
-            return Response.error("Зөвхөн админ устгах боломжтой");
+            return Response.error("Access denied");
         try {
             @SuppressWarnings("unchecked")
             java.util.Map<String, Object> data = (java.util.Map<String, Object>) req.getData();
@@ -84,7 +75,7 @@ public class ProductHandler {
     @SuppressWarnings("unchecked")
     public static Response updateImage(Request req, User user) {
         if (!user.getRole().equals("admin") && !user.getRole().equals("manager"))
-            return Response.error("Эрх хүрэлцэхгүй");
+            return Response.error("Access denied");
         try {
             Map<String, Object> data = (Map<String, Object>) req.getData();
             int productId = ((Double) data.get("productId")).intValue();
@@ -98,7 +89,7 @@ public class ProductHandler {
 
     public static Response updateStock(Request req, User user) {
         if (!user.getRole().equals("admin") && !user.getRole().equals("manager"))
-            return Response.error("Эрх хүрэлцэхгүй");
+            return Response.error("Access denied");
         try {
             @SuppressWarnings("unchecked")
             java.util.Map<String, Object> data = (java.util.Map<String, Object>) req.getData();

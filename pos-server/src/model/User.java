@@ -11,14 +11,6 @@ public class User {
 
     public User() {}
 
-    public User(int id, String username, String fullName, String role, boolean isActive) {
-        this.id = id;
-        this.username = username;
-        this.fullName = fullName;
-        this.role = role;
-        this.isActive = isActive;
-    }
-
     public int getId()                  { return id; }
     public void setId(int id)           { this.id = id; }
 

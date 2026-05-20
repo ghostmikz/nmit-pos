@@ -27,7 +27,7 @@ public class ReportsController {
 
     private final ReportsPanel view;
     private final User         currentUser;
-    private final Gson         gson = new Gson();
+    private static final Gson  GSON = new Gson();
 
     public ReportsController(ReportsPanel view, User currentUser) {
         this.view        = view;
@@ -52,7 +52,7 @@ public class ReportsController {
                 if (!"OK".equals(resp.get("status").getAsString()))
                     throw new Exception(resp.has("message") ? resp.get("message").getAsString() : "Error");
                 Type listType = new TypeToken<List<Sale>>(){}.getType();
-                return gson.fromJson(resp.get("data"), listType);
+                return GSON.fromJson(resp.get("data"), listType);
             }
 
             @Override

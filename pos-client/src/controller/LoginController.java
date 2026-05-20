@@ -50,7 +50,7 @@ public class LoginController {
                         view.showError(res.get("message").getAsString());
                     }
                 } catch (Exception ex) {
-                    view.showError("Серверт холбогдож чадсангүй");
+                    view.showError(ex.getMessage());
                 }
             }
         }.execute();
