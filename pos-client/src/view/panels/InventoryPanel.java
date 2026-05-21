@@ -76,7 +76,7 @@ public class InventoryPanel extends JPanel implements LanguageListener {
     private static final int COL_PRC  = 95;
     private static final int COL_STK  = 80;
     private static final int COL_STS  = 110;
-    private static final int COL_ACT  = 84;
+    private static final int COL_ACT  = 120;
     private static final int ROW_PAD  = 18;
     private static final int PAGE_SIZE = 12;
 
@@ -365,7 +365,24 @@ public class InventoryPanel extends JPanel implements LanguageListener {
         topTitle = new JLabel(I18n.t("inventory.title"));
         topTitle.setFont(new Font("Dialog", Font.BOLD, 20));
         topTitle.setForeground(TXT);
-        addProdBtn = navBtn(I18n.t("inventory.add"), ACCENT, Color.WHITE);
+        addProdBtn = new JButton(I18n.t("inventory.add")) {
+            @Override protected void paintComponent(Graphics g) {
+                Graphics2D g2 = (Graphics2D) g.create();
+                g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+                g2.setColor(getBackground());
+                g2.fillRoundRect(0, 0, getWidth(), getHeight(), 10, 10);
+                g2.dispose();
+                super.paintComponent(g);
+            }
+            @Override public boolean isOpaque() { return false; }
+        };
+        addProdBtn.setFont(new Font("Dialog", Font.BOLD, 13));
+        addProdBtn.setBackground(ACCENT);
+        addProdBtn.setForeground(Color.WHITE);
+        addProdBtn.setBorderPainted(false);
+        addProdBtn.setFocusPainted(false);
+        addProdBtn.setBorder(new EmptyBorder(9, 18, 9, 18));
+        addProdBtn.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
         addProdBtn.addActionListener(e -> openProductDialog(null));
         topBar.add(topTitle,  BorderLayout.WEST);
         topBar.add(addProdBtn,BorderLayout.EAST);
@@ -389,6 +406,8 @@ public class InventoryPanel extends JPanel implements LanguageListener {
         };
         searchWrap.setOpaque(false);
         searchWrap.setBorder(new EmptyBorder(8, 12, 8, 12));
+        searchWrap.setPreferredSize(new Dimension(280, 40));
+        searchWrap.setMinimumSize(new Dimension(280, 40));
         searchWrap.setMaximumSize(new Dimension(280, 40));
         searchPlaceholder = I18n.t("inventory.search");
         searchField = new JTextField(searchPlaceholder);
@@ -594,7 +613,7 @@ public class InventoryPanel extends JPanel implements LanguageListener {
         namePanel.add(skuLbl,  BorderLayout.SOUTH);
 
         // Category tag
-        JPanel catWrap = new JPanel(new FlowLayout(FlowLayout.LEFT, 0, 0));
+        JPanel catWrap = new JPanel(new GridBagLayout());
         catWrap.setOpaque(false);
         catWrap.setBorder(new EmptyBorder(0, ROW_PAD, 0, 0));
         if (p.getCategoryName() != null) {
@@ -613,29 +632,31 @@ public class InventoryPanel extends JPanel implements LanguageListener {
             tag.setForeground(c);
             tag.setFont(new Font("Dialog", Font.PLAIN, 11));
             tag.setBorder(new EmptyBorder(3, 9, 3, 9));
-            catWrap.add(tag);
+            GridBagConstraints cc = new GridBagConstraints();
+            cc.anchor = GridBagConstraints.WEST;
+            catWrap.add(tag, cc);
         }
 
         // Price
-        JPanel priceWrap = new JPanel(new FlowLayout(FlowLayout.LEFT, 0, 0));
+        JPanel priceWrap = new JPanel(new GridBagLayout());
         priceWrap.setOpaque(false);
         priceWrap.setBorder(new EmptyBorder(0, ROW_PAD, 0, 0));
         JLabel priceLbl = new JLabel("₮" + MNT.format(p.getPrice()));
         priceLbl.setFont(new Font("Dialog", Font.BOLD, 13));
         priceLbl.setForeground(TXT);
-        priceWrap.add(priceLbl);
+        { GridBagConstraints gbc = new GridBagConstraints(); gbc.anchor = GridBagConstraints.WEST; priceWrap.add(priceLbl, gbc); }
 
         // Stock
-        JPanel stockWrap = new JPanel(new FlowLayout(FlowLayout.LEFT, 0, 0));
+        JPanel stockWrap = new JPanel(new GridBagLayout());
         stockWrap.setOpaque(false);
         stockWrap.setBorder(new EmptyBorder(0, ROW_PAD, 0, 0));
         JLabel stockLbl = new JLabel(p.getStockQuantity() + " " + (p.getUnit() != null ? p.getUnit() : "ш"));
         stockLbl.setFont(new Font("Dialog", Font.PLAIN, 13));
         stockLbl.setForeground(TXT);
-        stockWrap.add(stockLbl);
+        { GridBagConstraints gbc = new GridBagConstraints(); gbc.anchor = GridBagConstraints.WEST; stockWrap.add(stockLbl, gbc); }
 
         // Status badge
-        JPanel statusWrap = new JPanel(new FlowLayout(FlowLayout.LEFT, 0, 0));
+        JPanel statusWrap = new JPanel(new GridBagLayout());
         statusWrap.setOpaque(false);
         statusWrap.setBorder(new EmptyBorder(0, ROW_PAD, 0, 0));
         String stTxt; Color stFg, stBg;
@@ -660,14 +681,13 @@ public class InventoryPanel extends JPanel implements LanguageListener {
         statusWrap.add(badge);
 
         // Action buttons
-        JPanel actions = new JPanel(new FlowLayout(FlowLayout.CENTER, 4, 0));
+        JPanel actions = new JPanel(new GridBagLayout());
         actions.setOpaque(false);
         JButton editBtn = tinyBtn(I18n.t("inventory.ctx.edit"), ACCENT);
         JButton delBtn  = tinyBtn(I18n.t("inventory.ctx.delete"), RED_CLR);
         editBtn.addActionListener(e -> openProductDialog(p));
         delBtn.addActionListener(e  -> confirmDeleteProduct(p));
-        actions.add(editBtn);
-        actions.add(delBtn);
+        { GridBagConstraints ac = new GridBagConstraints(); ac.insets = new Insets(0, 2, 0, 2); ac.gridx = 0; actions.add(editBtn, ac); ac.gridx = 1; actions.add(delBtn, ac); }
 
         row.add(namePanel);
         row.add(catWrap);

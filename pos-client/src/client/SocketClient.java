@@ -1,18 +1,16 @@
 package client;
 
-import com.google.gson.Gson;
-import com.google.gson.JsonObject;
-import com.google.gson.JsonParser;
+import model.Request;
+import model.Response;
 import util.AppSettings;
 
 import java.io.*;
 import java.net.Socket;
 
 public class SocketClient {
-    private Socket socket;
-    private BufferedReader in;
-    private PrintWriter    out;
-    private final Gson gson = new Gson();
+    private Socket             socket;
+    private ObjectOutputStream out;
+    private ObjectInputStream  in;
 
     private static SocketClient instance;
 
@@ -27,25 +25,27 @@ public class SocketClient {
         String host = AppSettings.getServerHost();
         int    port = AppSettings.getServerPort();
         socket = new Socket(host, port);
-        in  = new BufferedReader(new InputStreamReader(socket.getInputStream(),  "UTF-8"));
-        out = new PrintWriter(new OutputStreamWriter(socket.getOutputStream(), "UTF-8"), true);
+        out = new ObjectOutputStream(socket.getOutputStream());
+        out.flush();
+        in  = new ObjectInputStream(socket.getInputStream());
     }
 
     public void disconnect() {
         try { if (socket != null) socket.close(); } catch (IOException ignored) {}
     }
 
-    public JsonObject send(String action, String token, Object data) throws IOException {
-        JsonObject req = new JsonObject();
-        req.addProperty("action", action);
-        if (token != null) req.addProperty("token", token);
-        req.add("data", gson.toJsonTree(data));
-        out.println(req.toString());
-        String response = in.readLine();
-        return JsonParser.parseString(response).getAsJsonObject();
+    public synchronized Response send(String action, String token, Object data) throws IOException {
+        try {
+            out.writeObject(new Request(action, token, data));
+            out.reset();
+            out.flush();
+            return (Response) in.readObject();
+        } catch (ClassNotFoundException e) {
+            throw new IOException("Protocol error: " + e.getMessage(), e);
+        }
     }
 
-    public JsonObject send(String action, String token) throws IOException {
+    public Response send(String action, String token) throws IOException {
         return send(action, token, null);
     }
 

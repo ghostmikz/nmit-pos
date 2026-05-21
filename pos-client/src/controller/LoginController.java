@@ -1,8 +1,8 @@
 package controller;
 
 import client.SocketClient;
-import com.google.gson.JsonObject;
 import i18n.I18n;
+import model.Response;
 import model.User;
 import view.LoginFrame;
 import view.MainFrame;
@@ -27,8 +27,8 @@ public class LoginController {
         }
         view.setLoading(true);
 
-        new SwingWorker<JsonObject, Void>() {
-            @Override protected JsonObject doInBackground() throws Exception {
+        new SwingWorker<Response, Void>() {
+            @Override protected Response doInBackground() throws Exception {
                 if (!SocketClient.getInstance().isConnected())
                     SocketClient.getInstance().connect();
                 Map<String, String> data = new HashMap<>();
@@ -39,30 +39,27 @@ public class LoginController {
             @Override protected void done() {
                 view.setLoading(false);
                 try {
-                    JsonObject res = get();
-                    if ("OK".equals(res.get("status").getAsString())) {
-                        User user = parseUser(res.getAsJsonObject("data"));
+                    Response res = get();
+                    if ("OK".equals(res.getStatus())) {
+                        @SuppressWarnings("unchecked")
+                        Map<String, Object> d = (Map<String, Object>) res.getData();
+                        User user = new User();
+                        user.setId(((Number) d.get("id")).intValue());
+                        user.setUsername((String) d.get("username"));
+                        user.setFullName((String) d.get("fullName"));
+                        user.setRole((String) d.get("role"));
+                        user.setToken((String) d.get("token"));
                         view.close();
                         MainFrame main = new MainFrame(user);
                         new MainController(main, user);
                         main.setVisible(true);
                     } else {
-                        view.showError(res.get("message").getAsString());
+                        view.showError(res.getMessage());
                     }
                 } catch (Exception ex) {
                     view.showError(ex.getMessage());
                 }
             }
         }.execute();
-    }
-
-    private static User parseUser(JsonObject d) {
-        User user = new User();
-        user.setId(d.get("id").getAsInt());
-        user.setUsername(d.get("username").getAsString());
-        user.setFullName(d.get("fullName").getAsString());
-        user.setRole(d.get("role").getAsString());
-        user.setToken(d.get("token").getAsString());
-        return user;
     }
 }

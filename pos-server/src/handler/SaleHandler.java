@@ -1,25 +1,33 @@
 package handler;
 
-import com.google.gson.Gson;
 import dao.SaleDAO;
 import model.Request;
 import model.Response;
 import model.Sale;
+import model.SaleItem;
 import model.User;
 
 import java.math.BigDecimal;
+import java.util.List;
 import java.util.Map;
 
 public class SaleHandler {
 
-    private static final Gson GSON = new Gson();
-
+    @SuppressWarnings("unchecked")
     public static Response create(Request req, User user) {
         try {
-            Sale sale = GSON.fromJson(GSON.toJson(req.getData()), Sale.class);
+            Map<String, Object> d = (Map<String, Object>) req.getData();
+            Sale sale = new Sale();
             sale.setUserId(user.getId());
+            sale.setPaymentMethodId(((Number) d.get("paymentMethodId")).intValue());
+            Object discId = d.get("discountId");
+            sale.setDiscountId(discId != null ? ((Number) discId).intValue() : null);
+            sale.setSubtotal((BigDecimal) d.get("subtotal"));
+            sale.setDiscountAmount((BigDecimal) d.get("discountAmount"));
+            sale.setTotal((BigDecimal) d.get("total"));
+            sale.setNotes((String) d.get("notes"));
+            sale.setItems((List<SaleItem>) d.get("items"));
 
-            // Generate receipt number: RCP-YYYYMMDD-HHMMSS
             String receipt = "RCP-" + java.time.LocalDateTime.now()
                     .format(java.time.format.DateTimeFormatter.ofPattern("yyyyMMdd-HHmmssSSS"));
             sale.setReceiptNumber(receipt);
@@ -31,17 +39,17 @@ public class SaleHandler {
         }
     }
 
+    @SuppressWarnings("unchecked")
     public static Response processRefund(Request req, User user) {
         if (!user.getRole().equals("admin") && !user.getRole().equals("manager"))
             return Response.error("Access denied");
         try {
-            @SuppressWarnings("unchecked")
             Map<String, Object> data = (Map<String, Object>) req.getData();
-            int saleId            = ((Double) data.get("saleId")).intValue();
-            String reason         = (String) data.get("reason");
-            BigDecimal amount     = new BigDecimal(data.get("refundAmount").toString());
+            int saleId        = ((Number) data.get("saleId")).intValue();
+            String reason     = (String) data.get("reason");
+            BigDecimal amount = new BigDecimal(data.get("refundAmount").toString());
             new SaleDAO().processRefund(saleId, user.getId(), reason, amount);
-            return Response.ok("Буцаалт амжилттай");
+            return Response.ok("Refund successful");
         } catch (Exception e) {
             return Response.error(e.getMessage());
         }

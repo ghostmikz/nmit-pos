@@ -12,18 +12,16 @@ public class SettingsDialog extends JDialog {
     private static final Color BG      = new Color(0xF0F2F5);
     private static final Color WHITE   = Color.WHITE;
     private static final Color BORDER  = new Color(0xCDD5E0);
-    private static final Color ACCENT  = new Color(0x2563EB);
+    private static final Color ACCENT  = new Color(0x7a1a1a);
     private static final Color TEXT    = new Color(0x111827);
     private static final Color GRAY    = new Color(0x6B7280);
 
-    private JTextField hostField;
-    private JTextField portField;
     private JToggleButton mnBtn;
     private JToggleButton enBtn;
 
     public SettingsDialog(Frame parent) {
         super(parent, "Тохиргоо / Settings", true);
-        setSize(420, 360);
+        setSize(420, 230);
         setLocationRelativeTo(parent);
         setResizable(false);
         setContentPane(buildUI());
@@ -38,7 +36,6 @@ public class SettingsDialog extends JDialog {
         content.setLayout(new BoxLayout(content, BoxLayout.Y_AXIS));
         content.setBackground(BG);
 
-        // ── Language ─────────────────────────────────────────────
         content.add(sectionLabel("Хэл / Language"));
         content.add(Box.createVerticalStrut(10));
 
@@ -52,34 +49,6 @@ public class SettingsDialog extends JDialog {
         langRow.add(mnBtn); langRow.add(enBtn);
         content.add(langRow);
 
-        content.add(Box.createVerticalStrut(24));
-
-        // ── Server ───────────────────────────────────────────────
-        content.add(sectionLabel("Серверийн тохиргоо / Server"));
-        content.add(Box.createVerticalStrut(10));
-
-        JPanel serverGrid = new JPanel(new GridLayout(2, 2, 12, 10));
-        serverGrid.setBackground(BG);
-        serverGrid.setMaximumSize(new Dimension(Integer.MAX_VALUE, 100));
-
-        serverGrid.add(fieldLabel("IP хаяг / Host"));
-        serverGrid.add(fieldLabel("Порт / Port"));
-
-        hostField = styledField(AppSettings.getServerHost());
-        portField = styledField(String.valueOf(AppSettings.getServerPort()));
-        serverGrid.add(hostField);
-        serverGrid.add(portField);
-        content.add(serverGrid);
-
-        content.add(Box.createVerticalStrut(8));
-
-        JLabel hint = new JLabel("Өөр PC-д сервер ажиллаж байвал тухайн IP оруулна уу");
-        hint.setFont(new Font("Dialog", Font.PLAIN, 12));
-        hint.setForeground(GRAY);
-        hint.setAlignmentX(LEFT_ALIGNMENT);
-        content.add(hint);
-
-        // ── Buttons ──────────────────────────────────────────────
         content.add(Box.createVerticalStrut(28));
 
         JPanel btnRow = new JPanel(new GridLayout(1, 2, 12, 0));
@@ -113,38 +82,15 @@ public class SettingsDialog extends JDialog {
     }
 
     private void save() {
-        // Server settings
-        String host = hostField.getText().trim();
-        String portText = portField.getText().trim();
-
-        if (host.isEmpty()) {
-            JOptionPane.showMessageDialog(this, "Host is required", I18n.t("common.error"), JOptionPane.ERROR_MESSAGE);
-            return;
-        }
-        try {
-            int port = Integer.parseInt(portText);
-            if (port < 1 || port > 65535) throw new NumberFormatException();
-            AppSettings.setServerHost(host);
-            AppSettings.setServerPort(port);
-        } catch (NumberFormatException e) {
-            JOptionPane.showMessageDialog(this, "Port must be 1–65535", I18n.t("common.error"), JOptionPane.ERROR_MESSAGE);
-            return;
-        }
-
-        // Language — apply live via I18n listener system
         String selectedLang = mnBtn.isSelected() ? "mn" : "en";
         boolean langChanged = !selectedLang.equals(AppSettings.getLanguage());
-
+        AppSettings.setLanguage(selectedLang);
         AppSettings.save();
-
         if (langChanged) {
-            I18n.setLocale(selectedLang); // notifies all registered LanguageListeners
+            I18n.setLocale(selectedLang);
         }
-
         dispose();
     }
-
-    // ── Helpers ───────────────────────────────────────────────────────────────
 
     private JLabel sectionLabel(String text) {
         JLabel l = new JLabel(text);
@@ -152,20 +98,6 @@ public class SettingsDialog extends JDialog {
         l.setForeground(TEXT);
         l.setAlignmentX(LEFT_ALIGNMENT);
         return l;
-    }
-
-    private JLabel fieldLabel(String text) {
-        JLabel l = new JLabel(text);
-        l.setFont(new Font("Dialog", Font.PLAIN, 13));
-        l.setForeground(GRAY);
-        return l;
-    }
-
-    private JTextField styledField(String value) {
-        JTextField f = new JTextField(value);
-        f.setFont(new Font("Dialog", Font.PLAIN, 14));
-        f.setBorder(new CompoundBorder(new LineBorder(BORDER, 1), new EmptyBorder(8, 10, 8, 10)));
-        return f;
     }
 
     private JToggleButton langToggleBtn(String label, boolean selected) {

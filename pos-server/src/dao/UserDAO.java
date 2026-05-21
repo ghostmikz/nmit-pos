@@ -8,10 +8,11 @@ import java.util.List;
 public class UserDAO {
 
     public User findByUsername(String username) throws SQLException {
-        try (CallableStatement cs = DatabaseConnection.getInstance().prepareCall("{CALL sp_login(?)}")) {
+        try (CallableStatement cs = DatabaseConnection.getInstance().prepareCall("CALL sp_login(?)")) {
             cs.setString(1, username);
-            ResultSet rs = cs.executeQuery();
-            if (rs.next()) return mapRow(rs);
+            try (ResultSet rs = cs.executeQuery()) {
+                if (rs.next()) return mapRow(rs);
+            }
         }
         return null;
     }
@@ -27,36 +28,39 @@ public class UserDAO {
     }
 
     public int create(User u) throws SQLException {
-        try (CallableStatement cs = DatabaseConnection.getInstance().prepareCall("{CALL sp_add_user(?,?,?,?,?)}")) {
+        try (CallableStatement cs = DatabaseConnection.getInstance().prepareCall("CALL sp_add_user(?,?,?,?,?)")) {
             cs.setString(1, u.getUsername());
             cs.setString(2, u.getPasswordHash());
             cs.setString(3, u.getFullName());
             cs.setString(4, u.getRole());
             cs.setObject(5, u.getCreatedBy());
-            ResultSet rs = cs.executeQuery();
-            return rs.next() ? rs.getInt("user_id") : -1;
+            cs.execute();
+        }
+        try (Statement st = DatabaseConnection.getInstance().createStatement();
+             ResultSet rs = st.executeQuery("SELECT LAST_INSERT_ID()")) {
+            return rs.next() ? rs.getInt(1) : -1;
         }
     }
 
     public void update(int id, String fullName, String role, String password) throws SQLException {
-        try (CallableStatement cs = DatabaseConnection.getInstance().prepareCall("{CALL sp_update_user(?,?,?,?)}")) {
+        try (CallableStatement cs = DatabaseConnection.getInstance().prepareCall("CALL sp_update_user(?,?,?,?)")) {
             cs.setInt(1, id);
             cs.setString(2, fullName);
             cs.setString(3, role);
-            cs.setString(4, (password != null && !password.isBlank()) ? password : null);
+            cs.setObject(4, (password != null && !password.isBlank()) ? password : null);
             cs.execute();
         }
     }
 
     public void delete(int userId) throws SQLException {
-        try (CallableStatement cs = DatabaseConnection.getInstance().prepareCall("{CALL sp_delete_user(?)}")) {
+        try (CallableStatement cs = DatabaseConnection.getInstance().prepareCall("CALL sp_delete_user(?)")) {
             cs.setInt(1, userId);
             cs.execute();
         }
     }
 
     public void setActive(int userId, boolean active) throws SQLException {
-        try (CallableStatement cs = DatabaseConnection.getInstance().prepareCall("{CALL sp_set_user_active(?,?)}")) {
+        try (CallableStatement cs = DatabaseConnection.getInstance().prepareCall("CALL sp_set_user_active(?,?)")) {
             cs.setInt(1, userId);
             cs.setBoolean(2, active);
             cs.execute();

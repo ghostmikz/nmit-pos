@@ -1,13 +1,15 @@
 package dao;
 
+import util.ServerSettings;
+
 import java.sql.Connection;
 import java.sql.DriverManager;
 import java.sql.SQLException;
 
 public class DatabaseConnection {
-    private static final String URL      = "jdbc:mysql://localhost:3306/pos_db?useSSL=false&serverTimezone=UTC&allowPublicKeyRetrieval=true&characterEncoding=UTF-8&useUnicode=true";
-    private static final String USER     = "root";
-    private static final String PASSWORD = "0312";
+    private static final String URL      = ServerSettings.getDbUrl();
+    private static final String USER     = ServerSettings.getDbUser();
+    private static final String PASSWORD = ServerSettings.getDbPassword();
 
     // One connection per server thread — avoids shared-state concurrency bugs
     private static final ThreadLocal<Connection> THREAD_CONN = new ThreadLocal<>();

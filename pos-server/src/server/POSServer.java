@@ -1,6 +1,7 @@
 package server;
 
 import dao.DatabaseConnection;
+import util.ServerSettings;
 
 import java.io.IOException;
 import java.net.ServerSocket;
@@ -9,12 +10,11 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
 public class POSServer {
-    private static final int PORT = 9090;
 
     public static void main(String[] args) {
-        System.out.println("NMIT-POS Server starting on port " + PORT + "...");
+        int port = ServerSettings.getPort();
+        System.out.println("NMIT-POS Server starting on port " + port + "...");
 
-        // Test DB connection on startup
         try {
             DatabaseConnection.getInstance();
             System.out.println("Database connected successfully.");
@@ -24,7 +24,7 @@ public class POSServer {
         }
 
         ExecutorService pool = Executors.newCachedThreadPool();
-        try (ServerSocket serverSocket = new ServerSocket(PORT)) {
+        try (ServerSocket serverSocket = new ServerSocket(port)) {
             System.out.println("Server ready. Waiting for clients...");
             while (true) {
                 Socket client = serverSocket.accept();

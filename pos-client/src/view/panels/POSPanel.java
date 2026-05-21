@@ -32,6 +32,12 @@ public class POSPanel extends JPanel implements LanguageListener {
     }
 
     @FunctionalInterface
+    public interface SplitPaymentHandler {
+        void pay(List<CartItem> items, int method1Id, BigDecimal amount1,
+                 int method2Id, BigDecimal amount2, BigDecimal total, Runnable onSuccess);
+    }
+
+    @FunctionalInterface
     public interface ImageLoader {
         void load(int productId, Consumer<String> callback);
     }
@@ -50,9 +56,10 @@ public class POSPanel extends JPanel implements LanguageListener {
 
     static { MNT = NumberFormat.getNumberInstance(new Locale("mn", "MN")); }
 
-    private final User            user;
-    private       PaymentHandler  paymentHandler;
-    private       ImageLoader     imageLoader;
+    private final User                user;
+    private       PaymentHandler      paymentHandler;
+    private       SplitPaymentHandler splitPaymentHandler;
+    private       ImageLoader         imageLoader;
 
     private final Map<Integer, Image> imageCache = new HashMap<>();
 
@@ -78,8 +85,15 @@ public class POSPanel extends JPanel implements LanguageListener {
     private JLabel     emptyLabel;
     private JLabel     cartTitleLabel;
     private JButton    clearBtn;
-    private JButton    payBtnCash, payBtnCard, payBtnQPay, payBtnMonpay;
+    private JButton    payBtnCash, payBtnCard, payBtnQPay, payBtnMonpay, payBtnSplit;
     private javax.swing.Timer clockTimer;
+    // Barcode scanner
+    private final StringBuilder barcodeBuffer = new StringBuilder();
+    private javax.swing.Timer   barcodeTimer;
+    private KeyEventDispatcher  scannerDispatcher;
+    // Toast
+    private JLabel toastLabel;
+    private javax.swing.Timer toastTimer;
 
     public POSPanel(User user) {
         this.user = user;
@@ -88,6 +102,7 @@ public class POSPanel extends JPanel implements LanguageListener {
         add(buildLeft(), BorderLayout.CENTER);
         add(buildCart(), BorderLayout.EAST);
         startClock();
+        initBarcodeScanner();
     }
 
     // ── Public API ────────────────────────────────────────────────────────────
@@ -106,8 +121,9 @@ public class POSPanel extends JPanel implements LanguageListener {
         categoryBar.repaint();
     }
 
-    public void setPaymentHandler(PaymentHandler handler)       { this.paymentHandler = handler; }
-    public void setImageLoader(ImageLoader loader) { this.imageLoader = loader; }
+    public void setPaymentHandler(PaymentHandler handler)           { this.paymentHandler      = handler; }
+    public void setSplitPaymentHandler(SplitPaymentHandler handler) { this.splitPaymentHandler = handler; }
+    public void setImageLoader(ImageLoader loader)                  { this.imageLoader         = loader; }
 
     public void showError(String msg) {
         JOptionPane.showMessageDialog(this, msg, I18n.t("common.error"), JOptionPane.ERROR_MESSAGE);
@@ -130,6 +146,7 @@ public class POSPanel extends JPanel implements LanguageListener {
         payBtnCard.setText(I18n.t("pos.payment.card"));
         payBtnQPay.setText(I18n.t("pos.payment.qpay"));
         payBtnMonpay.setText(I18n.t("pos.payment.monpay"));
+        payBtnSplit.setText(I18n.t("pos.payment.split"));
         // Rebuild category bar pills with new "All" label
         Component[] comps = categoryBar.getComponents();
         if (comps.length > 0 && comps[0] instanceof JButton b)
@@ -212,6 +229,15 @@ public class POSPanel extends JPanel implements LanguageListener {
         view.MainFrame.modernScrollBar(scroll);
         scroll.getVerticalScrollBar().setUnitIncrement(20);
         area.add(scroll, BorderLayout.CENTER);
+
+        toastLabel = new JLabel("", SwingConstants.CENTER);
+        toastLabel.setFont(new Font("Dialog", Font.BOLD, 13));
+        toastLabel.setForeground(Color.WHITE);
+        toastLabel.setOpaque(true);
+        toastLabel.setBackground(new Color(0xDC2626));
+        toastLabel.setBorder(new EmptyBorder(10, 20, 10, 20));
+        toastLabel.setVisible(false);
+        area.add(toastLabel, BorderLayout.SOUTH);
         return area;
     }
 
@@ -494,9 +520,26 @@ public class POSPanel extends JPanel implements LanguageListener {
         cartCardPanel  = new JPanel(cartCardLayout);
         cartCardPanel.setOpaque(false);
 
+        JPanel emptyCard = new JPanel();
+        emptyCard.setLayout(new BoxLayout(emptyCard, BoxLayout.Y_AXIS));
+        emptyCard.setBackground(Color.WHITE);
+        ImageIcon cartIcon = view.MainFrame.assetSq("/assets/icons/pos.png", 52);
+        if (cartIcon != null) {
+            JLabel iconLbl = new JLabel(cartIcon);
+            iconLbl.setAlignmentX(CENTER_ALIGNMENT);
+            iconLbl.setOpaque(false);
+            emptyCard.add(Box.createVerticalGlue());
+            emptyCard.add(iconLbl);
+            emptyCard.add(Box.createVerticalStrut(12));
+        } else {
+            emptyCard.add(Box.createVerticalGlue());
+        }
         emptyLabel = new JLabel("<html><center>" + I18n.t("pos.cart.empty") + "</center></html>", SwingConstants.CENTER);
         emptyLabel.setFont(new Font("Dialog", Font.PLAIN, 14));
         emptyLabel.setForeground(new Color(0xCBD5E1));
+        emptyLabel.setAlignmentX(CENTER_ALIGNMENT);
+        emptyCard.add(emptyLabel);
+        emptyCard.add(Box.createVerticalGlue());
 
         cartItemsPanel = new JPanel();
         cartItemsPanel.setLayout(new BoxLayout(cartItemsPanel, BoxLayout.Y_AXIS));
@@ -510,8 +553,8 @@ public class POSPanel extends JPanel implements LanguageListener {
         view.MainFrame.modernScrollBar(scroll);
         scroll.getVerticalScrollBar().setUnitIncrement(20);
 
-        cartCardPanel.add(emptyLabel, "EMPTY");
-        cartCardPanel.add(scroll,     "ITEMS");
+        cartCardPanel.add(emptyCard, "EMPTY");
+        cartCardPanel.add(scroll,    "ITEMS");
         cartCardLayout.show(cartCardPanel, "EMPTY");
 
         center.add(cartCardPanel, BorderLayout.CENTER);
@@ -519,14 +562,18 @@ public class POSPanel extends JPanel implements LanguageListener {
     }
 
     private JPanel buildCartFooter() {
-        JPanel footer = new JPanel(new BorderLayout(0, 10));
+        JPanel footer = new JPanel();
+        footer.setLayout(new BoxLayout(footer, BoxLayout.Y_AXIS));
         footer.setBackground(Color.WHITE);
         footer.setBorder(BorderFactory.createCompoundBorder(
                 BorderFactory.createMatteBorder(1, 0, 0, 0, new Color(0xE2E8F0)),
-                new EmptyBorder(14, 16, 16, 16)));
+                new EmptyBorder(12, 16, 14, 16)));
 
+        // Total row
         JPanel totalRow = new JPanel(new BorderLayout());
         totalRow.setOpaque(false);
+        totalRow.setAlignmentX(LEFT_ALIGNMENT);
+        totalRow.setMaximumSize(new Dimension(Integer.MAX_VALUE, 36));
         totalPrefixLabel = new JLabel(I18n.t("pos.total"));
         totalPrefixLabel.setFont(new Font("Dialog", Font.PLAIN, 14));
         totalPrefixLabel.setForeground(TXT);
@@ -535,7 +582,10 @@ public class POSPanel extends JPanel implements LanguageListener {
         totalLabel.setForeground(ACCENT);
         totalRow.add(totalPrefixLabel, BorderLayout.WEST);
         totalRow.add(totalLabel,       BorderLayout.EAST);
+        footer.add(totalRow);
+        footer.add(Box.createVerticalStrut(12));
 
+        // Payment buttons
         JPanel payGrid = new JPanel(new GridLayout(2, 2, 8, 8));
         payGrid.setOpaque(false);
         payBtnCash   = payBtn(I18n.t("pos.payment.cash"),   1, new Color(0x16A34A));
@@ -547,13 +597,56 @@ public class POSPanel extends JPanel implements LanguageListener {
         payGrid.add(payBtnQPay);
         payGrid.add(payBtnMonpay);
 
-        footer.add(totalRow, BorderLayout.NORTH);
-        footer.add(payGrid,  BorderLayout.SOUTH);
+        payBtnSplit = new JButton(I18n.t("pos.payment.split")) {
+            @Override protected void paintComponent(Graphics g) {
+                Graphics2D g2 = (Graphics2D) g.create();
+                g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+                g2.setColor(getBackground());
+                g2.fillRoundRect(0, 0, getWidth(), getHeight(), 10, 10);
+                g2.dispose();
+                super.paintComponent(g);
+            }
+            @Override public boolean isOpaque() { return false; }
+        };
+        payBtnSplit.setFont(new Font("Dialog", Font.BOLD, 13));
+        payBtnSplit.setBackground(new Color(0xF1F5F9));
+        payBtnSplit.setForeground(new Color(0x475569));
+        payBtnSplit.setBorderPainted(false);
+        payBtnSplit.setFocusPainted(false);
+        payBtnSplit.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
+        payBtnSplit.addActionListener(e -> {
+            if (cart.isEmpty()) { showError(I18n.t("pos.error.empty_cart")); return; }
+            showSplitDialog();
+        });
+
+        JPanel payArea = new JPanel();
+        payArea.setLayout(new BoxLayout(payArea, BoxLayout.Y_AXIS));
+        payArea.setOpaque(false);
+        payArea.setAlignmentX(LEFT_ALIGNMENT);
+        payGrid.setMaximumSize(new Dimension(Integer.MAX_VALUE, 88));
+        payGrid.setAlignmentX(LEFT_ALIGNMENT);
+        payBtnSplit.setMaximumSize(new Dimension(Integer.MAX_VALUE, 38));
+        payBtnSplit.setAlignmentX(LEFT_ALIGNMENT);
+        payArea.add(payGrid);
+        payArea.add(Box.createVerticalStrut(8));
+        payArea.add(payBtnSplit);
+        footer.add(payArea);
+
         return footer;
     }
 
     private JButton payBtn(String label, int methodId, Color color) {
-        JButton btn = new JButton(label);
+        JButton btn = new JButton(label) {
+            @Override protected void paintComponent(Graphics g) {
+                Graphics2D g2 = (Graphics2D) g.create();
+                g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+                g2.setColor(getBackground());
+                g2.fillRoundRect(0, 0, getWidth(), getHeight(), 10, 10);
+                g2.dispose();
+                super.paintComponent(g);
+            }
+            @Override public boolean isOpaque() { return false; }
+        };
         btn.setFont(new Font("Dialog", Font.BOLD, 13));
         btn.setBackground(color);
         btn.setForeground(Color.WHITE);
@@ -591,9 +684,11 @@ public class POSPanel extends JPanel implements LanguageListener {
         refreshCart();
     }
 
-    private BigDecimal cartTotal() {
+    private BigDecimal cartSubtotal() {
         return cart.stream().map(CartItem::getSubtotal).reduce(BigDecimal.ZERO, BigDecimal::add);
     }
+
+    private BigDecimal cartTotal() { return cartSubtotal(); }
 
     private void rebuildHoldBar() {
         holdOrdersBar.removeAll();
@@ -635,7 +730,6 @@ public class POSPanel extends JPanel implements LanguageListener {
 
     private void refreshCart() {
         cartItemsPanel.removeAll();
-        BigDecimal total = BigDecimal.ZERO;
         for (int i = 0; i < cart.size(); i++) {
             cartItemsPanel.add(cartItemRow(cart.get(i)));
             if (i < cart.size() - 1) {
@@ -644,12 +738,11 @@ public class POSPanel extends JPanel implements LanguageListener {
                 sep.setMaximumSize(new Dimension(Integer.MAX_VALUE, 1));
                 cartItemsPanel.add(sep);
             }
-            total = total.add(cart.get(i).getSubtotal());
         }
         cartItemsPanel.revalidate();
         cartItemsPanel.repaint();
 
-        totalLabel.setText("₮" + MNT.format(total));
+        totalLabel.setText("₮" + MNT.format(cartTotal()));
         cartCardLayout.show(cartCardPanel, cart.isEmpty() ? "EMPTY" : "ITEMS");
     }
 
@@ -663,9 +756,12 @@ public class POSPanel extends JPanel implements LanguageListener {
 
         JPanel info = new JPanel(new BorderLayout());
         info.setOpaque(false);
-        JLabel nameLbl = new JLabel(ci.getProduct().getName());
+        String rawName     = ci.getProduct().getName();
+        String displayName = rawName.length() > 22 ? rawName.substring(0, 20) + "…" : rawName;
+        JLabel nameLbl = new JLabel(displayName);
         nameLbl.setFont(new Font("Dialog", Font.PLAIN, 13));
         nameLbl.setForeground(TXT);
+        if (rawName.length() > 22) nameLbl.setToolTipText(rawName);
         JLabel unitLbl = new JLabel("₮" + MNT.format(ci.getProduct().getPrice()) + "/" + (ci.getProduct().getUnit() != null ? ci.getProduct().getUnit() : "ш"));
         unitLbl.setFont(new Font("Dialog", Font.PLAIN, 11));
         unitLbl.setForeground(MUTED);
@@ -883,6 +979,166 @@ public class POSPanel extends JPanel implements LanguageListener {
         return btn;
     }
 
+    // ── Split payment dialog ──────────────────────────────────────────────────
+
+    private void showSplitDialog() {
+        BigDecimal total = cartTotal();
+        JDialog dlg = makeDialog(I18n.t("pos.payment.split"));
+
+        JPanel body = new JPanel();
+        body.setLayout(new BoxLayout(body, BoxLayout.Y_AXIS));
+        body.setBackground(Color.WHITE);
+        body.setBorder(new EmptyBorder(24, 28, 28, 28));
+
+        body.add(dialogLabel(I18n.t("pos.total"), 13, MUTED));
+        JLabel totalAmt = new JLabel("₮" + MNT.format(total));
+        totalAmt.setFont(new Font("Dialog", Font.BOLD, 28));
+        totalAmt.setForeground(TXT);
+        totalAmt.setAlignmentX(LEFT_ALIGNMENT);
+        body.add(totalAmt);
+        body.add(Box.createVerticalStrut(20));
+
+        body.add(dialogLabel(I18n.t("pos.cash.given"), 13, MUTED));
+        body.add(Box.createVerticalStrut(6));
+        JTextField cashInput = new JTextField();
+        cashInput.setFont(new Font("Dialog", Font.BOLD, 18));
+        cashInput.setForeground(TXT);
+        cashInput.setBorder(BorderFactory.createCompoundBorder(
+                BorderFactory.createLineBorder(new Color(0xE2E8F0)),
+                new EmptyBorder(8, 12, 8, 12)));
+        cashInput.setMaximumSize(new Dimension(Integer.MAX_VALUE, 48));
+        cashInput.setAlignmentX(LEFT_ALIGNMENT);
+        body.add(cashInput);
+        body.add(Box.createVerticalStrut(16));
+
+        body.add(dialogLabel(I18n.t("pos.split.second"), 13, MUTED));
+        body.add(Box.createVerticalStrut(6));
+        String[] methodNames = {I18n.t("pos.payment.card"), I18n.t("pos.payment.qpay"), I18n.t("pos.payment.monpay")};
+        int[]    methodIds   = {2, 3, 4};
+        JComboBox<String> methodCombo = new JComboBox<>(methodNames);
+        methodCombo.setFont(new Font("Dialog", Font.PLAIN, 14));
+        methodCombo.setMaximumSize(new Dimension(Integer.MAX_VALUE, 40));
+        methodCombo.setAlignmentX(LEFT_ALIGNMENT);
+        body.add(methodCombo);
+        body.add(Box.createVerticalStrut(12));
+
+        JLabel statusLabel = new JLabel(" ");
+        statusLabel.setFont(new Font("Dialog", Font.BOLD, 15));
+        statusLabel.setForeground(new Color(0x2563EB));
+        statusLabel.setAlignmentX(LEFT_ALIGNMENT);
+        body.add(statusLabel);
+        body.add(Box.createVerticalStrut(20));
+
+        JButton confirm = dialogBtn(I18n.t("pos.confirm"), ACCENT);
+        confirm.setEnabled(false);
+        body.add(confirm);
+        body.add(Box.createVerticalStrut(8));
+        JButton cancel = dialogBtn(I18n.t("pos.cancel"), new Color(0xF1F5F9));
+        cancel.setForeground(MUTED);
+        cancel.addActionListener(e -> dlg.dispose());
+        body.add(cancel);
+
+        cashInput.getDocument().addDocumentListener(new DocumentListener() {
+            void update() {
+                try {
+                    BigDecimal cash      = new BigDecimal(cashInput.getText().replaceAll("[^0-9.]", ""));
+                    BigDecimal remaining = total.subtract(cash);
+                    if (cash.compareTo(BigDecimal.ZERO) <= 0) {
+                        statusLabel.setText(" ");
+                        statusLabel.setForeground(new Color(0x2563EB));
+                        confirm.setEnabled(false);
+                    } else if (remaining.compareTo(BigDecimal.ZERO) > 0) {
+                        statusLabel.setText(I18n.t("pos.split.remaining") + ": ₮" + MNT.format(remaining));
+                        statusLabel.setForeground(new Color(0x2563EB));
+                        methodCombo.setEnabled(true);
+                        confirm.setEnabled(true);
+                    } else {
+                        BigDecimal change = cash.subtract(total);
+                        statusLabel.setText(I18n.t("pos.cash.change") + ": ₮" + MNT.format(change));
+                        statusLabel.setForeground(new Color(0x16A34A));
+                        methodCombo.setEnabled(false);
+                        confirm.setEnabled(true);
+                    }
+                } catch (Exception ex) {
+                    statusLabel.setText(" ");
+                    confirm.setEnabled(false);
+                }
+            }
+            @Override public void insertUpdate(DocumentEvent e)  { update(); }
+            @Override public void removeUpdate(DocumentEvent e)  { update(); }
+            @Override public void changedUpdate(DocumentEvent e) { update(); }
+        });
+
+        confirm.addActionListener(e -> {
+            if (splitPaymentHandler == null) return;
+            try {
+                BigDecimal cash      = new BigDecimal(cashInput.getText().replaceAll("[^0-9.]", ""));
+                BigDecimal remaining = total.subtract(cash).max(BigDecimal.ZERO);
+                int secondMethodId   = methodIds[methodCombo.getSelectedIndex()];
+                dlg.dispose();
+                splitPaymentHandler.pay(new ArrayList<>(cart), 1, cash, secondMethodId, remaining, total, this::clearCart);
+            } catch (Exception ignored) {}
+        });
+
+        dlg.add(body);
+        dlg.pack();
+        dlg.setMinimumSize(new Dimension(360, dlg.getPreferredSize().height));
+        dlg.setLocationRelativeTo(this);
+        dlg.setVisible(true);
+    }
+
+    // ── Barcode scanner ───────────────────────────────────────────────────────
+
+    private void initBarcodeScanner() {
+        barcodeTimer = new javax.swing.Timer(120, e -> barcodeBuffer.setLength(0));
+        barcodeTimer.setRepeats(false);
+
+        scannerDispatcher = event -> {
+            if (!isShowing()) return false;
+            if (event.getID() != KeyEvent.KEY_TYPED) return false;
+            Component focused = KeyboardFocusManager.getCurrentKeyboardFocusManager().getFocusOwner();
+            if (focused == searchField) return false;
+
+            char c = event.getKeyChar();
+            if (c == '\n' || c == '\r') {
+                barcodeTimer.stop();
+                String code = barcodeBuffer.toString().trim();
+                barcodeBuffer.setLength(0);
+                if (code.length() >= 3) {
+                    SwingUtilities.invokeLater(() -> processBarcodeInput(code));
+                    return true;
+                }
+                return false;
+            }
+            if (Character.isLetterOrDigit(c) || c == '-') {
+                barcodeBuffer.append(c);
+                barcodeTimer.restart();
+            }
+            return false;
+        };
+        KeyboardFocusManager.getCurrentKeyboardFocusManager().addKeyEventDispatcher(scannerDispatcher);
+    }
+
+    private void processBarcodeInput(String barcode) {
+        for (Product p : allProducts) {
+            if (p.isActive() && barcode.equalsIgnoreCase(p.getBarcode())) {
+                addToCart(p);
+                return;
+            }
+        }
+        showBarcodeToast("Barcode not found: " + barcode);
+    }
+
+    private void showBarcodeToast(String msg) {
+        if (toastLabel == null) return;
+        toastLabel.setText(msg);
+        toastLabel.setVisible(true);
+        if (toastTimer != null) toastTimer.stop();
+        toastTimer = new javax.swing.Timer(2500, e -> toastLabel.setVisible(false));
+        toastTimer.setRepeats(false);
+        toastTimer.start();
+    }
+
     // ── Clock ─────────────────────────────────────────────────────────────────
 
     private void startClock() {
@@ -895,5 +1151,8 @@ public class POSPanel extends JPanel implements LanguageListener {
     public void removeNotify() {
         super.removeNotify();
         if (clockTimer != null) clockTimer.stop();
+        if (toastTimer  != null) toastTimer.stop();
+        if (scannerDispatcher != null)
+            KeyboardFocusManager.getCurrentKeyboardFocusManager().removeKeyEventDispatcher(scannerDispatcher);
     }
 }

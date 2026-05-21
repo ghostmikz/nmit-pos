@@ -1,9 +1,6 @@
 package controller;
 
 import client.SocketClient;
-import com.google.gson.Gson;
-import com.google.gson.JsonObject;
-import com.google.gson.reflect.TypeToken;
 import i18n.I18n;
 import model.*;
 import view.panels.POSPanel;
@@ -11,11 +8,8 @@ import view.panels.POSPanel;
 import javax.swing.*;
 import java.math.BigDecimal;
 import java.util.*;
-import java.util.function.Consumer;
 
 public class POSController {
-
-    private static final Gson GSON = new Gson();
 
     private final POSPanel view;
     private final User     user;
@@ -24,8 +18,15 @@ public class POSController {
         this.view = view;
         this.user = user;
         view.setPaymentHandler(this::pay);
+        view.setSplitPaymentHandler(this::splitPay);
         view.setImageLoader(this::loadImage);
         loadData();
+        view.addHierarchyListener(e -> {
+            if ((e.getChangeFlags() & java.awt.event.HierarchyEvent.SHOWING_CHANGED) != 0
+                    && view.isShowing()) {
+                loadData();
+            }
+        });
     }
 
     private void loadData() {
@@ -39,14 +40,19 @@ public class POSController {
                     if (!SocketClient.getInstance().isConnected())
                         SocketClient.getInstance().connect();
 
-                    JsonObject r1 = SocketClient.getInstance().send("GET_CATEGORIES", user.getToken());
-                    if ("OK".equals(r1.get("status").getAsString()))
-                        categories = GSON.fromJson(r1.get("data"), new TypeToken<List<Category>>(){}.getType());
+                    Response r1 = SocketClient.getInstance().send("GET_CATEGORIES", user.getToken());
+                    if ("OK".equals(r1.getStatus())) {
+                        @SuppressWarnings("unchecked")
+                        List<Category> c = (List<Category>) r1.getData();
+                        categories = c;
+                    }
 
-                    JsonObject r2 = SocketClient.getInstance().send("GET_PRODUCTS", user.getToken());
-                    if ("OK".equals(r2.get("status").getAsString()))
-                        products = GSON.fromJson(r2.get("data"), new TypeToken<List<Product>>(){}.getType());
-
+                    Response r2 = SocketClient.getInstance().send("GET_PRODUCTS", user.getToken());
+                    if ("OK".equals(r2.getStatus())) {
+                        @SuppressWarnings("unchecked")
+                        List<Product> p = (List<Product>) r2.getData();
+                        products = p;
+                    }
                 } catch (Exception e) {
                     error = e.getMessage();
                 }
@@ -61,14 +67,14 @@ public class POSController {
         }.execute();
     }
 
-    private void loadImage(int productId, Consumer<String> callback) {
+    private void loadImage(int productId, java.util.function.Consumer<String> callback) {
         new SwingWorker<String, Void>() {
             @Override protected String doInBackground() throws Exception {
                 Map<String, Object> data = new HashMap<>();
                 data.put("productId", productId);
-                JsonObject res = SocketClient.getInstance().send("GET_PRODUCT_IMAGE", user.getToken(), data);
-                if ("OK".equals(res.get("status").getAsString()) && !res.get("data").isJsonNull())
-                    return res.get("data").getAsString();
+                Response res = SocketClient.getInstance().send("GET_PRODUCT_IMAGE", user.getToken(), data);
+                if ("OK".equals(res.getStatus()) && res.getData() != null)
+                    return (String) res.getData();
                 return null;
             }
             @Override protected void done() {
@@ -90,15 +96,17 @@ public class POSController {
         data.put("notes",           null);
         data.put("items",           saleItems);
 
-        new SwingWorker<JsonObject, Void>() {
-            @Override protected JsonObject doInBackground() throws Exception {
+        new SwingWorker<Response, Void>() {
+            @Override protected Response doInBackground() throws Exception {
                 return SocketClient.getInstance().send("CREATE_SALE", user.getToken(), data);
             }
             @Override protected void done() {
                 try {
-                    JsonObject res = get();
-                    if ("OK".equals(res.get("status").getAsString())) {
-                        String receipt = res.getAsJsonObject("data").get("receiptNumber").getAsString();
+                    Response res = get();
+                    if ("OK".equals(res.getStatus())) {
+                        @SuppressWarnings("unchecked")
+                        Map<String, Object> d = (Map<String, Object>) res.getData();
+                        String receipt = (String) d.get("receiptNumber");
                         SwingUtilities.invokeLater(() -> {
                             onSuccess.run();
                             loadData();
@@ -108,8 +116,54 @@ public class POSController {
                                     JOptionPane.INFORMATION_MESSAGE);
                         });
                     } else {
-                        String msg = res.get("message").getAsString();
-                        SwingUtilities.invokeLater(() -> view.showError(msg));
+                        SwingUtilities.invokeLater(() -> view.showError(res.getMessage()));
+                    }
+                } catch (Exception e) {
+                    SwingUtilities.invokeLater(() -> view.showError(e.getMessage()));
+                }
+            }
+        }.execute();
+    }
+
+    private void splitPay(List<CartItem> items, int method1Id, BigDecimal amount1,
+                          int method2Id, BigDecimal amount2, BigDecimal total, Runnable onSuccess) {
+        List<SaleItem> saleItems = new ArrayList<>();
+        for (CartItem ci : items) saleItems.add(ci.toSaleItem());
+
+        String m1 = switch (method1Id) { case 2 -> "Card"; case 3 -> "QPay"; case 4 -> "MonPay"; default -> "Cash"; };
+        String m2 = switch (method2Id) { case 2 -> "Card"; case 3 -> "QPay"; case 4 -> "MonPay"; default -> "Cash"; };
+        String notes = "Split: " + m1 + " ₮" + amount1.toPlainString() + " + " + m2 + " ₮" + amount2.toPlainString();
+
+        Map<String, Object> data = new HashMap<>();
+        data.put("paymentMethodId", method1Id);
+        data.put("subtotal",        total);
+        data.put("discountId",      null);
+        data.put("discountAmount",  BigDecimal.ZERO);
+        data.put("total",           total);
+        data.put("notes",           notes);
+        data.put("items",           saleItems);
+
+        new SwingWorker<Response, Void>() {
+            @Override protected Response doInBackground() throws Exception {
+                return SocketClient.getInstance().send("CREATE_SALE", user.getToken(), data);
+            }
+            @Override protected void done() {
+                try {
+                    Response res = get();
+                    if ("OK".equals(res.getStatus())) {
+                        @SuppressWarnings("unchecked")
+                        Map<String, Object> d = (Map<String, Object>) res.getData();
+                        String receipt = (String) d.get("receiptNumber");
+                        SwingUtilities.invokeLater(() -> {
+                            onSuccess.run();
+                            loadData();
+                            JOptionPane.showMessageDialog(view,
+                                    I18n.t("pos.receipt.prefix") + " " + receipt,
+                                    I18n.t("pos.success"),
+                                    JOptionPane.INFORMATION_MESSAGE);
+                        });
+                    } else {
+                        SwingUtilities.invokeLater(() -> view.showError(res.getMessage()));
                     }
                 } catch (Exception e) {
                     SwingUtilities.invokeLater(() -> view.showError(e.getMessage()));

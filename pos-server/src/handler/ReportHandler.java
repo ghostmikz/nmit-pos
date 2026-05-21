@@ -1,6 +1,5 @@
 package handler;
 
-import com.google.gson.Gson;
 import dao.ReportDAO;
 import dao.SaleDAO;
 import model.Request;
@@ -12,15 +11,13 @@ import java.util.Map;
 
 public class ReportHandler {
 
-    private static final Gson GSON = new Gson();
-
+    @SuppressWarnings("unchecked")
     public static Response getSalesReport(Request req, User user) {
         if ("cashier".equals(user.getRole())) return Response.error("Access denied");
         try {
             String startDate = null, endDate = null;
             if (req.getData() != null) {
-                @SuppressWarnings("unchecked")
-                Map<String, Object> d = GSON.fromJson(req.getData().toString(), Map.class);
+                Map<String, Object> d = (Map<String, Object>) req.getData();
                 startDate = (String) d.get("startDate");
                 endDate   = (String) d.get("endDate");
             }
@@ -35,10 +32,10 @@ public class ReportHandler {
         try {
             ReportDAO dao = new ReportDAO();
             Map<String, Object> dashboard = new HashMap<>();
-            dashboard.put("daily",       dao.getDailySummary());
-            dashboard.put("weeklySales", dao.getWeeklySales());
-            dashboard.put("topProducts", dao.getTopProducts());
-            dashboard.put("lowStock",    dao.getLowStock());
+            dashboard.put("daily",           dao.getDailySummary());
+            dashboard.put("topProducts",     dao.getTopProducts());
+            dashboard.put("lowStock",        dao.getLowStock());
+            dashboard.put("categoryRevenue", dao.getCategoryRevenue());
             return Response.ok(dashboard);
         } catch (Exception e) {
             return Response.error(e.getMessage());

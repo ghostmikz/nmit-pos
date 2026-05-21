@@ -1,10 +1,11 @@
 package dao;
 
+import com.google.gson.FieldNamingPolicy;
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
-import com.google.gson.FieldNamingPolicy;
 import model.Sale;
 import model.SaleItem;
+import java.math.BigDecimal;
 import java.sql.*;
 import java.util.ArrayList;
 import java.util.List;
@@ -34,7 +35,7 @@ public class SaleDAO {
         }
     }
 
-    public void processRefund(int saleId, int userId, String reason, java.math.BigDecimal amount) throws SQLException {
+    public void processRefund(int saleId, int userId, String reason, BigDecimal amount) throws SQLException {
         String sql = "CALL sp_process_refund(?,?,?,?)";
         try (CallableStatement cs = DatabaseConnection.getInstance().prepareCall(sql)) {
             cs.setInt(1, saleId);
@@ -56,20 +57,21 @@ public class SaleDAO {
         try (PreparedStatement ps = DatabaseConnection.getInstance().prepareStatement(sql)) {
             ps.setString(1, startDate); ps.setString(2, startDate);
             ps.setString(3, endDate);   ps.setString(4, endDate);
-            ResultSet rs = ps.executeQuery();
-            while (rs.next()) {
-                Sale s = new Sale();
-                s.setId(rs.getInt("id"));
-                s.setReceiptNumber(rs.getString("receipt_number"));
-                s.setCashierName(rs.getString("cashier_name"));
-                s.setPaymentMethod(rs.getString("payment_method"));
-                s.setDiscountName(rs.getString("discount_name"));
-                s.setSubtotal(rs.getBigDecimal("subtotal"));
-                s.setDiscountAmount(rs.getBigDecimal("discount_amount"));
-                s.setTotal(rs.getBigDecimal("total"));
-                s.setRefunded(rs.getBoolean("is_refunded"));
-                s.setCreatedAt(rs.getString("created_at"));
-                list.add(s);
+            try (ResultSet rs = ps.executeQuery()) {
+                while (rs.next()) {
+                    Sale s = new Sale();
+                    s.setId(rs.getInt("id"));
+                    s.setReceiptNumber(rs.getString("receipt_number"));
+                    s.setCashierName(rs.getString("cashier_name"));
+                    s.setPaymentMethod(rs.getString("payment_method"));
+                    s.setDiscountName(rs.getString("discount_name"));
+                    s.setSubtotal(rs.getBigDecimal("subtotal"));
+                    s.setDiscountAmount(rs.getBigDecimal("discount_amount"));
+                    s.setTotal(rs.getBigDecimal("total"));
+                    s.setRefunded(rs.getBoolean("is_refunded"));
+                    s.setCreatedAt(rs.getString("created_at"));
+                    list.add(s);
+                }
             }
         }
         return list;

@@ -1,6 +1,5 @@
 package handler;
 
-import com.google.gson.Gson;
 import dao.UserDAO;
 import model.Request;
 import model.Response;
@@ -10,9 +9,9 @@ import java.util.List;
 import java.util.Map;
 
 public class UserHandler {
-    private static final Gson    GSON = new Gson();
-    private static final UserDAO DAO  = new UserDAO();
+    private static final UserDAO DAO = new UserDAO();
 
+    @SuppressWarnings("unchecked")
     public static Response getAll(Request req, User caller) {
         if (!"admin".equals(caller.getRole())) return Response.error("Access denied");
         try {
@@ -24,11 +23,11 @@ public class UserHandler {
         }
     }
 
+    @SuppressWarnings("unchecked")
     public static Response add(Request req, User caller) {
         if (!"admin".equals(caller.getRole())) return Response.error("Access denied");
         try {
-            @SuppressWarnings("unchecked")
-            Map<String, Object> d = GSON.fromJson(req.getData().toString(), Map.class);
+            Map<String, Object> d = (Map<String, Object>) req.getData();
             String username = (String) d.get("username");
             String password = (String) d.get("password");
             String fullName = (String) d.get("fullName");
@@ -49,11 +48,11 @@ public class UserHandler {
         }
     }
 
+    @SuppressWarnings("unchecked")
     public static Response update(Request req, User caller) {
         if (!"admin".equals(caller.getRole())) return Response.error("Access denied");
         try {
-            @SuppressWarnings("unchecked")
-            Map<String, Object> d = GSON.fromJson(req.getData().toString(), Map.class);
+            Map<String, Object> d = (Map<String, Object>) req.getData();
             int    id       = ((Number) d.get("id")).intValue();
             String fullName = (String) d.get("fullName");
             String role     = (String) d.get("role");
@@ -65,11 +64,11 @@ public class UserHandler {
         }
     }
 
+    @SuppressWarnings("unchecked")
     public static Response setActive(Request req, User caller) {
         if (!"admin".equals(caller.getRole())) return Response.error("Access denied");
         try {
-            @SuppressWarnings("unchecked")
-            Map<String, Object> d = GSON.fromJson(req.getData().toString(), Map.class);
+            Map<String, Object> d = (Map<String, Object>) req.getData();
             int     id     = ((Number) d.get("id")).intValue();
             boolean active = (Boolean) d.get("active");
             if (id == caller.getId()) return Response.error("Cannot deactivate your own account");
@@ -80,11 +79,11 @@ public class UserHandler {
         }
     }
 
+    @SuppressWarnings("unchecked")
     public static Response delete(Request req, User caller) {
         if (!"admin".equals(caller.getRole())) return Response.error("Access denied");
         try {
-            @SuppressWarnings("unchecked")
-            Map<String, Object> d = GSON.fromJson(req.getData().toString(), Map.class);
+            Map<String, Object> d = (Map<String, Object>) req.getData();
             int id = ((Number) d.get("id")).intValue();
             if (id == caller.getId()) return Response.error("Cannot delete your own account");
             DAO.delete(id);

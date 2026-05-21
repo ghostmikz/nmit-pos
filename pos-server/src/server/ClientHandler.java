@@ -1,6 +1,5 @@
 package server;
 
-import com.google.gson.Gson;
 import handler.CategoryHandler;
 import handler.LoginHandler;
 import handler.ProductHandler;
@@ -16,7 +15,6 @@ import java.net.Socket;
 
 public class ClientHandler implements Runnable {
     private final Socket socket;
-    private final Gson gson = new Gson();
 
     public ClientHandler(Socket socket) {
         this.socket = socket;
@@ -24,13 +22,23 @@ public class ClientHandler implements Runnable {
 
     @Override
     public void run() {
-        try (BufferedReader in  = new BufferedReader(new InputStreamReader(socket.getInputStream(),  "UTF-8"));
-             PrintWriter   out = new PrintWriter(new OutputStreamWriter(socket.getOutputStream(), "UTF-8"), true)) {
+        try {
+            ObjectOutputStream out = new ObjectOutputStream(socket.getOutputStream());
+            out.flush();
+            ObjectInputStream in = new ObjectInputStream(socket.getInputStream());
 
-            String line;
-            while ((line = in.readLine()) != null) {
-                Response response = handle(line);
-                out.println(gson.toJson(response));
+            while (true) {
+                try {
+                    Request req = (Request) in.readObject();
+                    Response response = handle(req);
+                    out.writeObject(response);
+                    out.reset();
+                    out.flush();
+                } catch (EOFException | java.net.SocketException e) {
+                    break;
+                } catch (ClassNotFoundException e) {
+                    // skip malformed request
+                }
             }
         } catch (IOException e) {
             System.out.println("Client disconnected: " + socket.getInetAddress());
@@ -40,41 +48,38 @@ public class ClientHandler implements Runnable {
         }
     }
 
-    private Response handle(String json) {
+    private Response handle(Request req) {
         try {
-            Request req = gson.fromJson(json, Request.class);
             String action = req.getAction();
 
-            // LOGIN does not require a token
             if ("LOGIN".equals(action)) return LoginHandler.handle(req);
 
-            // All other actions require a valid session
             User user = SessionManager.getUser(req.getToken());
             if (user == null) return Response.error("Unauthorized — please log in");
 
             return switch (action) {
-                case "LOGOUT"         -> LoginHandler.logout(req);
-                case "GET_PRODUCTS"   -> ProductHandler.getAll(req, user);
-                case "GET_CATEGORIES"    -> CategoryHandler.getAll(req, user);
-                case "ADD_CATEGORY"      -> CategoryHandler.add(req, user);
-                case "UPDATE_CATEGORY"   -> CategoryHandler.update(req, user);
-                case "DELETE_CATEGORY"   -> CategoryHandler.delete(req, user);
-                case "ADD_PRODUCT"    -> ProductHandler.add(req, user);
-                case "UPDATE_PRODUCT" -> ProductHandler.update(req, user);
-                case "DELETE_PRODUCT" -> ProductHandler.delete(req, user);
+                case "LOGOUT"              -> LoginHandler.logout(req);
+                case "GET_PRODUCTS"        -> ProductHandler.getAll(req, user);
+                case "GET_CATEGORIES"      -> CategoryHandler.getAll(req, user);
+                case "ADD_CATEGORY"        -> CategoryHandler.add(req, user);
+                case "UPDATE_CATEGORY"     -> CategoryHandler.update(req, user);
+                case "DELETE_CATEGORY"     -> CategoryHandler.delete(req, user);
+                case "ADD_PRODUCT"         -> ProductHandler.add(req, user);
+                case "UPDATE_PRODUCT"      -> ProductHandler.update(req, user);
+                case "DELETE_PRODUCT"      -> ProductHandler.delete(req, user);
                 case "UPDATE_STOCK"        -> ProductHandler.updateStock(req, user);
                 case "GET_PRODUCT_IMAGE"   -> ProductHandler.getImage(req, user);
                 case "UPDATE_PRODUCT_IMAGE"-> ProductHandler.updateImage(req, user);
-                case "CREATE_SALE"    -> SaleHandler.create(req, user);
-                case "PROCESS_REFUND" -> SaleHandler.processRefund(req, user);
-                case "GET_USERS"       -> UserHandler.getAll(req, user);
-                case "ADD_USER"        -> UserHandler.add(req, user);
-                case "UPDATE_USER"     -> UserHandler.update(req, user);
-                case "SET_USER_ACTIVE" -> UserHandler.setActive(req, user);
-                case "DELETE_USER"     -> UserHandler.delete(req, user);
-                case "GET_REPORT"     -> ReportHandler.getSalesReport(req, user);
-                case "GET_DASHBOARD"  -> ReportHandler.getDashboard(req, user);
-                default               -> Response.error("Unknown action: " + action);
+                case "CREATE_SALE"         -> SaleHandler.create(req, user);
+                case "PROCESS_REFUND"      -> SaleHandler.processRefund(req, user);
+                case "GET_USERS"           -> UserHandler.getAll(req, user);
+                case "ADD_USER"            -> UserHandler.add(req, user);
+                case "UPDATE_USER"         -> UserHandler.update(req, user);
+                case "SET_USER_ACTIVE"     -> UserHandler.setActive(req, user);
+                case "DELETE_USER"         -> UserHandler.delete(req, user);
+                case "GET_REPORT"          -> ReportHandler.getSalesReport(req, user);
+                case "GET_DASHBOARD"       -> ReportHandler.getDashboard(req, user);
+                default                    -> Response.error("Unknown action: " + action);
             };
         } catch (Exception e) {
             e.printStackTrace();

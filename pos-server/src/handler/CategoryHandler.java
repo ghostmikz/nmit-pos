@@ -39,8 +39,8 @@ public class CategoryHandler {
             return Response.error("Access denied");
         try {
             Map<String, Object> data = (Map<String, Object>) req.getData();
-            int id       = ((Double) data.get("id")).intValue();
-            String name  = (String) data.get("name");
+            int id      = ((Number) data.get("id")).intValue();
+            String name = (String) data.get("name");
             if (name == null || name.isBlank()) return Response.error("Name is required");
             new CategoryDAO().update(id, name.trim());
             return Response.ok("Updated");
@@ -55,7 +55,7 @@ public class CategoryHandler {
             return Response.error("Access denied");
         try {
             Map<String, Object> data = (Map<String, Object>) req.getData();
-            int id = ((Double) data.get("id")).intValue();
+            int id = ((Number) data.get("id")).intValue();
             new CategoryDAO().delete(id);
             return Response.ok("Deleted");
         } catch (Exception e) {

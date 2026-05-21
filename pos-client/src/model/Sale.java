@@ -1,8 +1,10 @@
 package model;
 
+import java.io.Serializable;
 import java.math.BigDecimal;
 
-public class Sale {
+public class Sale implements Serializable {
+    private static final long serialVersionUID = 1L;
     private int id;
     private String receiptNumber;
     private String cashierName;

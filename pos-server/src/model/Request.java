@@ -1,8 +1,9 @@
 package model;
 
-// Client → Server JSON wrapper
-// {"action":"LOGIN","token":null,"data":{...}}
-public class Request {
+import java.io.Serializable;
+
+public class Request implements Serializable {
+    private static final long serialVersionUID = 1L;
     private String action;
     private String token;
     private Object data;

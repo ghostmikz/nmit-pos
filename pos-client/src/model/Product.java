@@ -1,8 +1,10 @@
 package model;
 
+import java.io.Serializable;
 import java.math.BigDecimal;
 
-public class Product {
+public class Product implements Serializable {
+    private static final long serialVersionUID = 1L;
     private int id;
     private String barcode;
     private String name;

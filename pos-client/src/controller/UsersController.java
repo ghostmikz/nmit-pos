@@ -1,8 +1,7 @@
 package controller;
 
 import client.SocketClient;
-import com.google.gson.Gson;
-import com.google.gson.reflect.TypeToken;
+import model.Response;
 import model.User;
 import view.panels.UsersPanel;
 
@@ -14,8 +13,6 @@ import java.util.Map;
 import java.util.function.Consumer;
 
 public class UsersController {
-
-    private static final Gson GSON = new Gson();
 
     private final UsersPanel view;
     private final User       currentUser;
@@ -37,10 +34,13 @@ public class UsersController {
                 try {
                     if (!SocketClient.getInstance().isConnected())
                         SocketClient.getInstance().connect();
-                    var r = SocketClient.getInstance().send("GET_USERS", currentUser.getToken());
-                    if ("OK".equals(r.get("status").getAsString()))
-                        return GSON.fromJson(r.get("data"), new TypeToken<List<User>>(){}.getType());
-                    error = r.get("message").getAsString();
+                    Response r = SocketClient.getInstance().send("GET_USERS", currentUser.getToken());
+                    if ("OK".equals(r.getStatus())) {
+                        @SuppressWarnings("unchecked")
+                        List<User> u = (List<User>) r.getData();
+                        return u;
+                    }
+                    error = r.getMessage();
                 } catch (Exception e) {
                     error = e.getMessage();
                 }
@@ -67,17 +67,17 @@ public class UsersController {
         data.put("role",     u.getRole());
         if (!password.isBlank()) data.put("password", password);
 
-        new SwingWorker<com.google.gson.JsonObject, Void>() {
-            @Override protected com.google.gson.JsonObject doInBackground() throws Exception {
+        new SwingWorker<Response, Void>() {
+            @Override protected Response doInBackground() throws Exception {
                 return SocketClient.getInstance().send(isNew ? "ADD_USER" : "UPDATE_USER", currentUser.getToken(), data);
             }
             @Override protected void done() {
                 try {
-                    var res = get();
-                    if ("OK".equals(res.get("status").getAsString())) {
+                    Response res = get();
+                    if ("OK".equals(res.getStatus())) {
                         SwingUtilities.invokeLater(() -> { onSuccess.run(); loadUsers(); });
                     } else {
-                        SwingUtilities.invokeLater(() -> view.showError(res.get("message").getAsString()));
+                        SwingUtilities.invokeLater(() -> view.showError(res.getMessage()));
                     }
                 } catch (Exception e) {
                     SwingUtilities.invokeLater(() -> view.showError(e.getMessage()));
@@ -90,17 +90,17 @@ public class UsersController {
         Map<String, Object> data = new HashMap<>();
         data.put("id", userId);
 
-        new SwingWorker<com.google.gson.JsonObject, Void>() {
-            @Override protected com.google.gson.JsonObject doInBackground() throws Exception {
+        new SwingWorker<Response, Void>() {
+            @Override protected Response doInBackground() throws Exception {
                 return SocketClient.getInstance().send("DELETE_USER", currentUser.getToken(), data);
             }
             @Override protected void done() {
                 try {
-                    var res = get();
-                    if ("OK".equals(res.get("status").getAsString())) {
+                    Response res = get();
+                    if ("OK".equals(res.getStatus())) {
                         SwingUtilities.invokeLater(() -> { onSuccess.run(); loadUsers(); });
                     } else {
-                        SwingUtilities.invokeLater(() -> onError.accept(res.get("message").getAsString()));
+                        SwingUtilities.invokeLater(() -> onError.accept(res.getMessage()));
                     }
                 } catch (Exception e) {
                     SwingUtilities.invokeLater(() -> onError.accept(e.getMessage()));
@@ -114,17 +114,17 @@ public class UsersController {
         data.put("id",     userId);
         data.put("active", active);
 
-        new SwingWorker<com.google.gson.JsonObject, Void>() {
-            @Override protected com.google.gson.JsonObject doInBackground() throws Exception {
+        new SwingWorker<Response, Void>() {
+            @Override protected Response doInBackground() throws Exception {
                 return SocketClient.getInstance().send("SET_USER_ACTIVE", currentUser.getToken(), data);
             }
             @Override protected void done() {
                 try {
-                    var res = get();
-                    if ("OK".equals(res.get("status").getAsString())) {
+                    Response res = get();
+                    if ("OK".equals(res.getStatus())) {
                         SwingUtilities.invokeLater(() -> { onSuccess.run(); loadUsers(); });
                     } else {
-                        SwingUtilities.invokeLater(() -> onError.accept(res.get("message").getAsString()));
+                        SwingUtilities.invokeLater(() -> onError.accept(res.getMessage()));
                     }
                 } catch (Exception e) {
                     SwingUtilities.invokeLater(() -> onError.accept(e.getMessage()));

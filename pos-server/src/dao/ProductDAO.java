@@ -9,7 +9,9 @@ public class ProductDAO {
 
     public List<Product> findAll() throws SQLException {
         List<Product> list = new ArrayList<>();
-        String sql = "SELECT id, barcode, product_name, category_id, category_name, price, cost_price, stock_quantity, unit, expiry_date, is_active, has_image, low_stock_alert FROM view_product_stock ORDER BY product_name";
+        String sql = "SELECT id, barcode, product_name, category_id, category_name, price, cost_price, " +
+                     "stock_quantity, unit, expiry_date, is_active, has_image, low_stock_alert " +
+                     "FROM view_product_stock ORDER BY product_name";
         try (Statement st = DatabaseConnection.getInstance().createStatement();
              ResultSet rs = st.executeQuery(sql)) {
             while (rs.next()) list.add(mapRow(rs));
@@ -29,13 +31,16 @@ public class ProductDAO {
             cs.setString(7, p.getUnit());
             cs.setObject(8, p.getExpiryDate());
             cs.setInt(9, p.getLowStockAlert() > 0 ? p.getLowStockAlert() : 10);
-            ResultSet rs = cs.executeQuery();
-            return rs.next() ? rs.getInt("product_id") : -1;
+            cs.execute();
+        }
+        try (Statement st = DatabaseConnection.getInstance().createStatement();
+             ResultSet rs = st.executeQuery("SELECT LAST_INSERT_ID()")) {
+            return rs.next() ? rs.getInt(1) : -1;
         }
     }
 
     public void update(Product p) throws SQLException {
-        String sql = "CALL sp_update_product(?,?,?,?,?,?,?,?,?)";
+        String sql = "CALL sp_update_product(?,?,?,?,?,?,?,?,?,?)";
         try (CallableStatement cs = DatabaseConnection.getInstance().prepareCall(sql)) {
             cs.setInt(1, p.getId());
             cs.setString(2, p.getBarcode());
@@ -43,24 +48,24 @@ public class ProductDAO {
             cs.setInt(4, p.getCategoryId());
             cs.setBigDecimal(5, p.getPrice());
             cs.setBigDecimal(6, p.getCostPrice());
-            cs.setString(7, p.getUnit());
-            cs.setObject(8, p.getExpiryDate());
-            cs.setInt(9, p.getLowStockAlert() > 0 ? p.getLowStockAlert() : 10);
+            cs.setInt(7, p.getStockQuantity());
+            cs.setString(8, p.getUnit());
+            cs.setObject(9, p.getExpiryDate());
+            cs.setInt(10, p.getLowStockAlert() > 0 ? p.getLowStockAlert() : 10);
             cs.execute();
         }
     }
 
     public void delete(int productId) throws SQLException {
-        String sql = "CALL sp_delete_product(?)";
-        try (CallableStatement cs = DatabaseConnection.getInstance().prepareCall(sql)) {
+        try (CallableStatement cs = DatabaseConnection.getInstance().prepareCall("CALL sp_delete_product(?)")) {
             cs.setInt(1, productId);
             cs.execute();
         }
     }
 
     public byte[] getImage(int productId) throws SQLException {
-        String sql = "SELECT image FROM products WHERE id=?";
-        try (PreparedStatement ps = DatabaseConnection.getInstance().prepareStatement(sql)) {
+        try (PreparedStatement ps = DatabaseConnection.getInstance()
+                .prepareStatement("SELECT image FROM products WHERE id = ?")) {
             ps.setInt(1, productId);
             try (ResultSet rs = ps.executeQuery()) {
                 return rs.next() ? rs.getBytes("image") : null;
@@ -69,8 +74,8 @@ public class ProductDAO {
     }
 
     public void updateImage(int productId, byte[] image) throws SQLException {
-        String sql = "UPDATE products SET image=? WHERE id=?";
-        try (PreparedStatement ps = DatabaseConnection.getInstance().prepareStatement(sql)) {
+        try (PreparedStatement ps = DatabaseConnection.getInstance()
+                .prepareStatement("UPDATE products SET image = ? WHERE id = ?")) {
             ps.setBytes(1, image);
             ps.setInt(2, productId);
             ps.executeUpdate();
@@ -78,8 +83,7 @@ public class ProductDAO {
     }
 
     public void updateStock(int productId, int quantity) throws SQLException {
-        String sql = "CALL sp_update_stock(?,?)";
-        try (CallableStatement cs = DatabaseConnection.getInstance().prepareCall(sql)) {
+        try (CallableStatement cs = DatabaseConnection.getInstance().prepareCall("CALL sp_update_stock(?,?)")) {
             cs.setInt(1, productId);
             cs.setInt(2, quantity);
             cs.execute();

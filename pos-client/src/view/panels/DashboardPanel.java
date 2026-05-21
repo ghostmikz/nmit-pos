@@ -7,19 +7,19 @@ import model.User;
 import javax.swing.*;
 import javax.swing.border.EmptyBorder;
 import java.awt.*;
+import java.awt.geom.Arc2D;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 
 public class DashboardPanel extends JPanel implements LanguageListener {
 
-    // ── palette ─────────────────────────────────────────────────────────────
     private static final Color ACCENT    = new Color(0x7a1a1a);
     private static final Color BG        = new Color(0xF0F2F5);
     private static final Color CARD_BG   = Color.WHITE;
     private static final Color TXT       = new Color(0x1E293B);
     private static final Color MUTED     = new Color(0x64748B);
-    private static final Color SEP       = new Color(0xF1F5F9);
+    private static final Color SEP       = new Color(0xE2E8F0);
     private static final Color BLUE      = new Color(0x2563EB);
     private static final Color BLUE_BG   = new Color(0xDBEAFE);
     private static final Color AMBER     = new Color(0xD97706);
@@ -27,27 +27,34 @@ public class DashboardPanel extends JPanel implements LanguageListener {
     private static final Color GREEN     = new Color(0x16A34A);
     private static final Color RED_CLR   = new Color(0xDC2626);
     private static final Color RED_BG    = new Color(0xFEE2E2);
+    private static final Color SHADOW    = new Color(0, 0, 0, 18);
+    private static final Color[] PIE_COLORS = {
+        new Color(0x7a1a1a), new Color(0x2563EB), new Color(0xD97706),
+        new Color(0x16A34A), new Color(0x7C3AED), new Color(0x0891B2),
+        new Color(0xDB2777), new Color(0x65A30D), new Color(0xDC2626),
+        new Color(0x475569)
+    };
 
     @FunctionalInterface
     public interface DataLoader { void load(); }
 
-    // ── state ────────────────────────────────────────────────────────────────
     private final User user;
     private DataLoader dataLoader;
 
-    // ── KPI labels ───────────────────────────────────────────────────────────
-    private JLabel lblTxnVal, lblRevVal, lblDiscVal, lblLowVal;
+    // KPI value labels
+    private JLabel lblTxnVal, lblRevVal, lblLowVal;
+    // KPI title labels — stored so onLanguageChanged() can update them
+    private JLabel lblTxnTitle, lblRevTitle, lblLowKpiTitle;
+    // Section / header labels
     private JLabel lblTitle, lblSubtitle;
-    private JLabel lblLowStockTitle, lblTopTitle, lblChartTitle;
-
-    // ── lists ────────────────────────────────────────────────────────────────
-    private JPanel lowStockList;
-    private JPanel topProductsList;
-
-    // ── chart ────────────────────────────────────────────────────────────────
-    private BarChartPanel barChart;
-
-    // ── toast ─────────────────────────────────────────────────────────────────
+    private JLabel lblLowStockTitle, lblTopTitle, lblPieCatTitle;
+    // List panels
+    private JPanel lowStockList, topProductsList;
+    // Charts
+    private PieChartPanel pieCats;
+    // Empty-state labels — stored so onLanguageChanged() can retranslate them
+    private JLabel emptyStockLbl, emptyTopLbl;
+    // Toast
     private JLabel toastLabel;
     private Timer  toastTimer;
 
@@ -60,12 +67,12 @@ public class DashboardPanel extends JPanel implements LanguageListener {
 
     public void setDataLoader(DataLoader loader) { this.dataLoader = loader; }
 
-    // ─────────────────────────────────────────────────────────────────────────
     private void build() {
-        add(buildTopBar(),  BorderLayout.NORTH);
-        add(buildCenter(),  BorderLayout.CENTER);
+        add(buildTopBar(), BorderLayout.NORTH);
+        add(buildCenter(), BorderLayout.CENTER);
     }
 
+    // ── top bar ───────────────────────────────────────────────────────────────
     private JPanel buildTopBar() {
         JPanel bar = new JPanel(new BorderLayout());
         bar.setBackground(CARD_BG);
@@ -97,81 +104,96 @@ public class DashboardPanel extends JPanel implements LanguageListener {
 
         JPanel wrapper = new JPanel(new BorderLayout());
         wrapper.setBackground(CARD_BG);
-        wrapper.add(bar,         BorderLayout.CENTER);
-        wrapper.add(separator(), BorderLayout.SOUTH);
+        wrapper.add(bar, BorderLayout.CENTER);
+        JSeparator sep = new JSeparator();
+        sep.setForeground(SEP);
+        wrapper.add(sep, BorderLayout.SOUTH);
         return wrapper;
     }
 
-    private JScrollPane buildCenter() {
-        JPanel content = new JPanel();
-        content.setLayout(new BoxLayout(content, BoxLayout.Y_AXIS));
+    // ── center layout ─────────────────────────────────────────────────────────
+    private JPanel buildCenter() {
+        JPanel content = new JPanel(new BorderLayout(0, 16));
         content.setBackground(BG);
         content.setBorder(new EmptyBorder(20, 24, 20, 24));
 
-        content.add(buildKpiRow());
-        content.add(Box.createVerticalStrut(20));
-        content.add(buildListsRow());
-        content.add(Box.createVerticalStrut(20));
-        content.add(buildChartCard());
-        content.add(Box.createVerticalStrut(12));
+        content.add(buildKpiRow(), BorderLayout.NORTH);
+
+        // right column: top products + low stock stacked
+        JPanel rightStack = new JPanel(new GridLayout(2, 1, 0, 14));
+        rightStack.setBackground(BG);
+        rightStack.setPreferredSize(new Dimension(290, 100));
+        rightStack.add(buildTopProductsCard());
+        rightStack.add(buildLowStockCard());
+
+        // pie chart fills remaining center
+        pieCats        = new PieChartPanel();
+        lblPieCatTitle = sectionTitle(I18n.t("dashboard.pie.category"));
+        JPanel pieCard = buildPieCard(lblPieCatTitle, pieCats);
+
+        JPanel mainGrid = new JPanel(new BorderLayout(14, 0));
+        mainGrid.setBackground(BG);
+        mainGrid.add(pieCard,    BorderLayout.CENTER);
+        mainGrid.add(rightStack, BorderLayout.EAST);
+
+        content.add(mainGrid, BorderLayout.CENTER);
 
         toastLabel = new JLabel("", SwingConstants.CENTER);
         toastLabel.setFont(new Font("Dialog", Font.PLAIN, 12));
         toastLabel.setForeground(GREEN);
         toastLabel.setVisible(false);
-        toastLabel.setAlignmentX(Component.CENTER_ALIGNMENT);
-        content.add(toastLabel);
+        toastLabel.setPreferredSize(new Dimension(100, 0));
+        content.add(toastLabel, BorderLayout.SOUTH);
 
-        JScrollPane scroll = new JScrollPane(content);
-        scroll.setBorder(null);
-        scroll.getVerticalScrollBar().setUnitIncrement(16);
-        scroll.getViewport().setBackground(BG);
-        return scroll;
+        return content;
     }
 
-    // ── KPI row ───────────────────────────────────────────────────────────────
+    // ── KPI row (3 cards) ─────────────────────────────────────────────────────
     private JPanel buildKpiRow() {
-        JPanel row = new JPanel(new FlowLayout(FlowLayout.LEFT, 16, 0));
-        row.setBackground(BG);
-        row.setMaximumSize(new Dimension(Integer.MAX_VALUE, 130));
-
         lblTxnVal  = new JLabel("—");
         lblRevVal  = new JLabel("—");
-        lblDiscVal = new JLabel("—");
         lblLowVal  = new JLabel("—");
 
-        row.add(kpiCard(I18n.t("dashboard.kpi.transactions"), lblTxnVal,  BLUE,    BLUE_BG));
-        row.add(kpiCard(I18n.t("dashboard.kpi.revenue"),      lblRevVal,  ACCENT,  RED_BG));
-        row.add(kpiCard(I18n.t("dashboard.kpi.discounts"),    lblDiscVal, AMBER,   AMBER_BG));
-        row.add(kpiCard(I18n.t("dashboard.kpi.low.stock"),    lblLowVal,  RED_CLR, RED_BG));
+        lblTxnTitle    = new JLabel(I18n.t("dashboard.kpi.transactions").toUpperCase());
+        lblRevTitle    = new JLabel(I18n.t("dashboard.kpi.revenue").toUpperCase());
+        lblLowKpiTitle = new JLabel(I18n.t("dashboard.kpi.low.stock").toUpperCase());
+
+        JPanel row = new JPanel(new GridLayout(1, 3, 14, 0));
+        row.setBackground(BG);
+        row.setPreferredSize(new Dimension(100, 112));
+
+        row.add(kpiCard(lblTxnTitle,    lblTxnVal,  BLUE,    BLUE_BG));
+        row.add(kpiCard(lblRevTitle,    lblRevVal,  ACCENT,  RED_BG));
+        row.add(kpiCard(lblLowKpiTitle, lblLowVal,  RED_CLR, RED_BG));
         return row;
     }
 
-    private JPanel kpiCard(String label, JLabel valueLabel, Color accent, Color accentBg) {
-        JPanel card = new JPanel(null) {
+    private JPanel kpiCard(JLabel titleLbl, JLabel valueLabel, Color accent, Color accentBg) {
+        JPanel card = new JPanel() {
             @Override protected void paintComponent(Graphics g) {
                 Graphics2D g2 = (Graphics2D) g.create();
                 g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+                g2.setColor(SHADOW);
+                g2.fillRoundRect(2, 3, getWidth() - 2, getHeight() - 2, 14, 14);
                 g2.setColor(CARD_BG);
-                g2.fillRoundRect(0, 0, getWidth(), getHeight(), 14, 14);
+                g2.fillRoundRect(0, 0, getWidth() - 2, getHeight() - 3, 14, 14);
                 g2.setColor(accent);
-                g2.fillRect(0, 0, 5, getHeight());
+                g2.fillRoundRect(0, 0, 6, getHeight() - 3, 6, 6);
+                g2.fillRect(3, 0, 3, getHeight() - 3);
                 g2.dispose();
             }
         };
-        card.setPreferredSize(new Dimension(200, 110));
         card.setOpaque(false);
+        card.setLayout(new BorderLayout());
 
-        valueLabel.setFont(new Font("Dialog", Font.BOLD, 28));
-        valueLabel.setForeground(TXT);
-        valueLabel.setBounds(18, 20, 165, 36);
+        JPanel topArea = new JPanel(new BorderLayout(8, 0));
+        topArea.setOpaque(false);
+        topArea.setBorder(new EmptyBorder(18, 20, 6, 18));
 
-        JLabel lbl = new JLabel(label);
-        lbl.setFont(new Font("Dialog", Font.PLAIN, 12));
-        lbl.setForeground(MUTED);
-        lbl.setBounds(18, 60, 165, 18);
+        titleLbl.setFont(new Font("Dialog", Font.PLAIN, 10));
+        titleLbl.setForeground(MUTED);
 
-        JLabel iconDot = new JLabel() {
+        JLabel circle = new JLabel() {
             @Override protected void paintComponent(Graphics g) {
                 Graphics2D g2 = (Graphics2D) g.create();
                 g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
@@ -180,27 +202,33 @@ public class DashboardPanel extends JPanel implements LanguageListener {
                 g2.dispose();
             }
         };
-        iconDot.setOpaque(false);
-        iconDot.setBounds(162, 18, 22, 22);
+        circle.setOpaque(false);
+        circle.setPreferredSize(new Dimension(30, 30));
 
-        card.add(valueLabel);
-        card.add(lbl);
-        card.add(iconDot);
+        topArea.add(titleLbl, BorderLayout.CENTER);
+        topArea.add(circle,   BorderLayout.EAST);
+
+        valueLabel.setFont(new Font("Dialog", Font.BOLD, 26));
+        valueLabel.setForeground(TXT);
+        valueLabel.setBorder(new EmptyBorder(0, 20, 16, 18));
+
+        card.add(topArea,    BorderLayout.NORTH);
+        card.add(valueLabel, BorderLayout.SOUTH);
         return card;
     }
 
-    // ── lists row ─────────────────────────────────────────────────────────────
-    private JPanel buildListsRow() {
-        JPanel row = new JPanel(new GridLayout(1, 2, 16, 0));
-        row.setBackground(BG);
-        row.setMaximumSize(new Dimension(Integer.MAX_VALUE, 280));
-        row.add(buildLowStockCard());
-        row.add(buildTopProductsCard());
-        return row;
+    // ── pie card ──────────────────────────────────────────────────────────────
+    private JPanel buildPieCard(JLabel titleLabel, PieChartPanel chart) {
+        JPanel card = shadowCard();
+        card.setLayout(new BorderLayout());
+        card.add(titleLabel, BorderLayout.NORTH);
+        card.add(chart,      BorderLayout.CENTER);
+        return card;
     }
 
+    // ── list cards ────────────────────────────────────────────────────────────
     private JPanel buildLowStockCard() {
-        JPanel card = whiteCard();
+        JPanel card = shadowCard();
         card.setLayout(new BorderLayout());
 
         lblLowStockTitle = sectionTitle(I18n.t("dashboard.low.stock.title"));
@@ -213,13 +241,15 @@ public class DashboardPanel extends JPanel implements LanguageListener {
         JScrollPane scroll = new JScrollPane(lowStockList);
         scroll.setBorder(null);
         scroll.getVerticalScrollBar().setUnitIncrement(8);
+        scroll.getVerticalScrollBar().setPreferredSize(new Dimension(0, 0));
+        scroll.setHorizontalScrollBarPolicy(JScrollPane.HORIZONTAL_SCROLLBAR_NEVER);
         scroll.getViewport().setBackground(CARD_BG);
         card.add(scroll, BorderLayout.CENTER);
         return card;
     }
 
     private JPanel buildTopProductsCard() {
-        JPanel card = whiteCard();
+        JPanel card = shadowCard();
         card.setLayout(new BorderLayout());
 
         lblTopTitle = sectionTitle(I18n.t("dashboard.top.products.title"));
@@ -232,32 +262,19 @@ public class DashboardPanel extends JPanel implements LanguageListener {
         JScrollPane scroll = new JScrollPane(topProductsList);
         scroll.setBorder(null);
         scroll.getVerticalScrollBar().setUnitIncrement(8);
+        scroll.getVerticalScrollBar().setPreferredSize(new Dimension(0, 0));
+        scroll.setHorizontalScrollBarPolicy(JScrollPane.HORIZONTAL_SCROLLBAR_NEVER);
         scroll.getViewport().setBackground(CARD_BG);
         card.add(scroll, BorderLayout.CENTER);
         return card;
     }
 
-    // ── custom bar chart (no JFreeChart needed) ───────────────────────────────
-    private JPanel buildChartCard() {
-        JPanel card = whiteCard();
-        card.setLayout(new BorderLayout());
-        card.setMaximumSize(new Dimension(Integer.MAX_VALUE, 260));
-        card.setPreferredSize(new Dimension(Integer.MAX_VALUE, 260));
+    // ── pie chart (category revenue) ──────────────────────────────────────────
+    private static class PieChartPanel extends JPanel {
+        private final List<String> labels = new ArrayList<>();
+        private final List<Double> values = new ArrayList<>();
 
-        lblChartTitle = sectionTitle(I18n.t("dashboard.chart.title"));
-        card.add(lblChartTitle, BorderLayout.NORTH);
-
-        barChart = new BarChartPanel();
-        card.add(barChart, BorderLayout.CENTER);
-        return card;
-    }
-
-    /** Lightweight bar chart drawn with Java2D — no external dependencies. */
-    private static class BarChartPanel extends JPanel {
-        private final List<String> labels  = new ArrayList<>();
-        private final List<Double> values  = new ArrayList<>();
-
-        BarChartPanel() {
+        PieChartPanel() {
             setBackground(CARD_BG);
             setOpaque(true);
         }
@@ -270,75 +287,75 @@ public class DashboardPanel extends JPanel implements LanguageListener {
 
         @Override protected void paintComponent(Graphics g) {
             super.paintComponent(g);
-            if (values.isEmpty()) {
-                g.setFont(new Font("Dialog", Font.PLAIN, 12));
+
+            double total = values.stream().mapToDouble(d -> d).sum();
+            if (values.isEmpty() || total == 0) {
+                g.setFont(new Font("Dialog", Font.PLAIN, 13));
                 g.setColor(MUTED);
-                String msg = "No data";
+                String msg = I18n.t("dashboard.empty");
                 FontMetrics fm = g.getFontMetrics();
                 g.drawString(msg, (getWidth() - fm.stringWidth(msg)) / 2, getHeight() / 2);
                 return;
             }
 
             Graphics2D g2 = (Graphics2D) g.create();
-            g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+            g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING,      RenderingHints.VALUE_ANTIALIAS_ON);
+            g2.setRenderingHint(RenderingHints.KEY_TEXT_ANTIALIASING, RenderingHints.VALUE_TEXT_ANTIALIAS_ON);
 
-            int padL = 60, padR = 20, padT = 16, padB = 40;
-            int chartW = getWidth()  - padL - padR;
-            int chartH = getHeight() - padT - padB;
             int n       = values.size();
+            int rows    = Math.min(n, 5);
+            int legendH = rows * 20 + 8;
+            int pad     = 16;
+            int pieDiam = Math.min(getWidth() - pad * 2, getHeight() - legendH - pad * 3);
+            pieDiam = Math.max(pieDiam, 20);
+            int px = (getWidth() - pieDiam) / 2;
+            int py = pad;
 
-            double maxVal = values.stream().mapToDouble(d -> d).max().orElse(1);
-            if (maxVal == 0) maxVal = 1;
+            // shadow
+            g2.setColor(SHADOW);
+            g2.fillOval(px + 2, py + 3, pieDiam, pieDiam);
 
-            int barW   = Math.max(8, chartW / (n * 2));
-            int gap    = (chartW - barW * n) / (n + 1);
-
-            // grid lines
-            g2.setColor(new Color(0xF1F5F9));
-            int gridLines = 4;
-            for (int i = 0; i <= gridLines; i++) {
-                int y = padT + (int) (chartH * i / gridLines);
-                g2.drawLine(padL, y, padL + chartW, y);
-
-                // y-axis label
-                long labelVal = Math.round(maxVal * (gridLines - i) / gridLines);
-                String yLbl = formatCompact(labelVal);
-                g2.setFont(new Font("Dialog", Font.PLAIN, 9));
-                g2.setColor(MUTED);
-                FontMetrics fm = g2.getFontMetrics();
-                g2.drawString(yLbl, padL - fm.stringWidth(yLbl) - 4,
-                              y + fm.getAscent() / 2);
-                g2.setColor(new Color(0xF1F5F9));
-            }
-
-            // bars + x labels
+            // slices
+            double angle = -90.0;
             for (int i = 0; i < n; i++) {
-                int barH   = (int) (chartH * values.get(i) / maxVal);
-                int x      = padL + gap + i * (barW + gap);
-                int y      = padT + chartH - barH;
-
-                // bar with rounded top
-                g2.setColor(ACCENT);
-                if (barH > 0) {
-                    int arc = Math.min(6, barW / 2);
-                    g2.fillRoundRect(x, y, barW, barH, arc, arc);
-                    // square off the bottom corners
-                    if (barH > arc)
-                        g2.fillRect(x, y + arc, barW, barH - arc);
-                }
-
-                // x-axis label
-                String lbl = i < labels.size() ? labels.get(i) : "";
-                g2.setFont(new Font("Dialog", Font.PLAIN, 9));
-                g2.setColor(MUTED);
-                FontMetrics fm = g2.getFontMetrics();
-                g2.drawString(lbl, x + (barW - fm.stringWidth(lbl)) / 2,
-                              padT + chartH + fm.getAscent() + 4);
+                double sweep = 360.0 * values.get(i) / total;
+                g2.setColor(PIE_COLORS[i % PIE_COLORS.length]);
+                g2.fill(new Arc2D.Double(px, py, pieDiam, pieDiam, angle, sweep, Arc2D.PIE));
+                g2.setColor(CARD_BG);
+                g2.setStroke(new BasicStroke(1.5f));
+                g2.draw(new Arc2D.Double(px, py, pieDiam, pieDiam, angle, sweep, Arc2D.PIE));
+                angle += sweep;
             }
 
-            // baseline
-            g2.setColor(new Color(0xE2E8F0));
-            g2.drawLine(padL, padT + chartH, padL + chartW, padT + chartH);
+            // donut hole
+            int hole = pieDiam / 3;
+            g2.setColor(CARD_BG);
+            g2.fillOval(px + (pieDiam - hole) / 2, py + (pieDiam - hole) / 2, hole, hole);
+
+            // center total
+            g2.setFont(new Font("Dialog", Font.BOLD, 12));
+            g2.setColor(TXT);
+            String totStr = formatCompact((long) total);
+            FontMetrics tfm = g2.getFontMetrics();
+            int cx = px + pieDiam / 2, cy = py + pieDiam / 2;
+            g2.drawString(totStr, cx - tfm.stringWidth(totStr) / 2, cy + tfm.getAscent() / 2 - 1);
+
+            // legend
+            g2.setFont(new Font("Dialog", Font.PLAIN, 11));
+            int lx = pad, ly = py + pieDiam + 14;
+            for (int i = 0; i < Math.min(n, 5); i++) {
+                g2.setColor(PIE_COLORS[i % PIE_COLORS.length]);
+                g2.fillRoundRect(lx, ly + i * 20 + 3, 10, 10, 4, 4);
+                g2.setColor(TXT);
+                double pct = values.get(i) / total * 100;
+                FontMetrics fm = g2.getFontMetrics();
+                String lbl = labels.get(i);
+                int maxLblW = getWidth() - lx - 16 - 40;
+                while (fm.stringWidth(lbl) > maxLblW && lbl.length() > 3)
+                    lbl = lbl.substring(0, lbl.length() - 1);
+                g2.drawString(lbl + "  " + String.format("%.0f%%", pct), lx + 16, ly + i * 20 + 12);
+            }
+
             g2.dispose();
         }
 
@@ -349,30 +366,30 @@ public class DashboardPanel extends JPanel implements LanguageListener {
         }
     }
 
-    // ── public data setters ───────────────────────────────────────────────────
+    // ── data setter ───────────────────────────────────────────────────────────
     @SuppressWarnings("unchecked")
     public void setDashboardData(Map<String, Object> data) {
         SwingUtilities.invokeLater(() -> {
             if (data == null) return;
 
-            // daily KPIs
             Object dailyObj = data.get("daily");
             if (dailyObj instanceof Map) {
                 Map<String, Object> daily = (Map<String, Object>) dailyObj;
+                double rev = toDouble(daily.get("totalRevenue"));
                 lblTxnVal.setText(fmt(daily.get("totalTransactions")));
-                lblRevVal.setText("₮" + fmtMoney(daily.get("totalRevenue")));
-                lblDiscVal.setText("₮" + fmtMoney(daily.get("totalDiscounts")));
+                lblRevVal.setText("₮" + fmtMoney(rev));
             }
 
-            // low stock list
             Object lowObj = data.get("lowStock");
             lowStockList.removeAll();
+            emptyStockLbl = null;
             int lowCount = 0;
             if (lowObj instanceof List) {
                 List<Map<String, Object>> low = (List<Map<String, Object>>) lowObj;
                 lowCount = low.size();
                 if (low.isEmpty()) {
-                    lowStockList.add(emptyLabel(I18n.t("dashboard.empty")));
+                    emptyStockLbl = emptyLabel(I18n.t("dashboard.empty"));
+                    lowStockList.add(emptyStockLbl);
                 } else {
                     for (Map<String, Object> row : low) {
                         lowStockList.add(lowStockRow(row));
@@ -382,13 +399,14 @@ public class DashboardPanel extends JPanel implements LanguageListener {
             }
             lblLowVal.setText(String.valueOf(lowCount));
 
-            // top products list
             Object topObj = data.get("topProducts");
             topProductsList.removeAll();
+            emptyTopLbl = null;
             if (topObj instanceof List) {
                 List<Map<String, Object>> top = (List<Map<String, Object>>) topObj;
                 if (top.isEmpty()) {
-                    topProductsList.add(emptyLabel(I18n.t("dashboard.empty")));
+                    emptyTopLbl = emptyLabel(I18n.t("dashboard.empty"));
+                    topProductsList.add(emptyTopLbl);
                 } else {
                     int rank = 1;
                     for (Map<String, Object> row : top) {
@@ -398,19 +416,16 @@ public class DashboardPanel extends JPanel implements LanguageListener {
                 }
             }
 
-            // weekly chart
-            Object weeklyObj = data.get("weeklySales");
-            if (weeklyObj instanceof List) {
-                List<Map<String, Object>> weekly = (List<Map<String, Object>>) weeklyObj;
+            Object crObj = data.get("categoryRevenue");
+            if (pieCats != null && crObj instanceof List) {
+                List<Map<String, Object>> cr = (List<Map<String, Object>>) crObj;
                 List<String> lbls = new ArrayList<>();
                 List<Double> vals = new ArrayList<>();
-                for (Map<String, Object> row : weekly) {
-                    String date = String.valueOf(row.get("saleDate"));
-                    double rev  = toDouble(row.get("totalRevenue"));
-                    lbls.add(date.length() >= 10 ? date.substring(5) : date);
-                    vals.add(rev);
+                for (Map<String, Object> row : cr) {
+                    lbls.add(String.valueOf(row.getOrDefault("categoryName", "Other")));
+                    vals.add(toDouble(row.get("totalRevenue")));
                 }
-                barChart.setData(lbls, vals);
+                pieCats.setData(lbls, vals);
             }
 
             lowStockList.revalidate();
@@ -422,7 +437,7 @@ public class DashboardPanel extends JPanel implements LanguageListener {
         });
     }
 
-    // ── row builders ─────────────────────────────────────────────────────────
+    // ── row builders ──────────────────────────────────────────────────────────
     private JPanel lowStockRow(Map<String, Object> row) {
         String name = String.valueOf(row.getOrDefault("productName",  "—"));
         String cat  = String.valueOf(row.getOrDefault("categoryName", "—"));
@@ -449,9 +464,9 @@ public class DashboardPanel extends JPanel implements LanguageListener {
         left.add(nameLabel);
         left.add(catLabel);
 
-        Color badgeBg  = qty == 0 ? RED_BG   : AMBER_BG;
-        Color badgeFg  = qty == 0 ? RED_CLR  : AMBER;
-        JLabel badge   = badge(qty + " " + unit, badgeBg, badgeFg);
+        Color badgeBg = qty == 0 ? RED_BG  : AMBER_BG;
+        Color badgeFg = qty == 0 ? RED_CLR : AMBER;
+        JLabel badge  = badge(qty + " " + unit, badgeBg, badgeFg);
 
         p.add(left,  BorderLayout.CENTER);
         p.add(badge, BorderLayout.EAST);
@@ -474,7 +489,7 @@ public class DashboardPanel extends JPanel implements LanguageListener {
         JLabel rankLabel = new JLabel("#" + rank);
         rankLabel.setFont(new Font("Dialog", Font.BOLD, 12));
         rankLabel.setForeground(rank <= 3 ? ACCENT : MUTED);
-        rankLabel.setPreferredSize(new Dimension(30, 20));
+        rankLabel.setPreferredSize(new Dimension(28, 20));
 
         JLabel nameLabel = new JLabel(name);
         nameLabel.setFont(new Font("Dialog", Font.PLAIN, 13));
@@ -487,12 +502,12 @@ public class DashboardPanel extends JPanel implements LanguageListener {
         right.setLayout(new BoxLayout(right, BoxLayout.Y_AXIS));
         right.setBackground(CARD_BG);
 
-        JLabel revLabel  = new JLabel("₮" + fmtMoney(revenue));
+        JLabel revLabel = new JLabel("₮" + fmtMoney(revenue));
         revLabel.setFont(new Font("Dialog", Font.BOLD, 12));
         revLabel.setForeground(ACCENT);
         revLabel.setAlignmentX(Component.RIGHT_ALIGNMENT);
 
-        JLabel soldLabel = new JLabel(sold + " sold");
+        JLabel soldLabel = new JLabel(sold + " " + I18n.t("dashboard.sold"));
         soldLabel.setFont(new Font("Dialog", Font.PLAIN, 11));
         soldLabel.setForeground(MUTED);
         soldLabel.setAlignmentX(Component.RIGHT_ALIGNMENT);
@@ -506,13 +521,15 @@ public class DashboardPanel extends JPanel implements LanguageListener {
     }
 
     // ── helpers ───────────────────────────────────────────────────────────────
-    private JPanel whiteCard() {
+    private JPanel shadowCard() {
         JPanel c = new JPanel() {
             @Override protected void paintComponent(Graphics g) {
                 Graphics2D g2 = (Graphics2D) g.create();
                 g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+                g2.setColor(SHADOW);
+                g2.fillRoundRect(2, 3, getWidth() - 2, getHeight() - 2, 14, 14);
                 g2.setColor(CARD_BG);
-                g2.fillRoundRect(0, 0, getWidth(), getHeight(), 14, 14);
+                g2.fillRoundRect(0, 0, getWidth() - 2, getHeight() - 3, 14, 14);
                 g2.dispose();
             }
         };
@@ -522,24 +539,20 @@ public class DashboardPanel extends JPanel implements LanguageListener {
 
     private JLabel sectionTitle(String text) {
         JLabel l = new JLabel(text);
-        l.setFont(new Font("Dialog", Font.BOLD, 14));
+        l.setFont(new Font("Dialog", Font.BOLD, 13));
         l.setForeground(TXT);
-        l.setBorder(new EmptyBorder(14, 16, 10, 16));
+        l.setBorder(BorderFactory.createCompoundBorder(
+            BorderFactory.createMatteBorder(0, 3, 0, 0, ACCENT),
+            new EmptyBorder(13, 13, 11, 16)));
         return l;
     }
 
     private JPanel rowSep() {
         JPanel s = new JPanel();
-        s.setBackground(SEP);
+        s.setBackground(new Color(0xF8FAFC));
         s.setMaximumSize(new Dimension(Integer.MAX_VALUE, 1));
         s.setPreferredSize(new Dimension(Integer.MAX_VALUE, 1));
         return s;
-    }
-
-    private JSeparator separator() {
-        JSeparator sep = new JSeparator();
-        sep.setForeground(SEP);
-        return sep;
     }
 
     private JLabel emptyLabel(String text) {
@@ -587,7 +600,7 @@ public class DashboardPanel extends JPanel implements LanguageListener {
         b.setBorderPainted(false);
         b.setFocusPainted(false);
         b.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
-        b.setBorder(new EmptyBorder(8, 18, 8, 18));
+        b.setBorder(new EmptyBorder(9, 20, 9, 20));
         return b;
     }
 
@@ -612,9 +625,13 @@ public class DashboardPanel extends JPanel implements LanguageListener {
 
     public void showToast(String msg) {
         toastLabel.setText(msg);
+        toastLabel.setPreferredSize(new Dimension(100, 20));
         toastLabel.setVisible(true);
         if (toastTimer != null) toastTimer.stop();
-        toastTimer = new Timer(2500, e -> toastLabel.setVisible(false));
+        toastTimer = new Timer(2500, e -> {
+            toastLabel.setVisible(false);
+            toastLabel.setPreferredSize(new Dimension(100, 0));
+        });
         toastTimer.setRepeats(false);
         toastTimer.start();
     }
@@ -623,8 +640,14 @@ public class DashboardPanel extends JPanel implements LanguageListener {
     public void onLanguageChanged() {
         if (lblTitle         != null) lblTitle.setText(I18n.t("dashboard.title"));
         if (lblSubtitle      != null) lblSubtitle.setText(I18n.t("dashboard.subtitle"));
+        if (lblTxnTitle      != null) lblTxnTitle.setText(I18n.t("dashboard.kpi.transactions").toUpperCase());
+        if (lblRevTitle      != null) lblRevTitle.setText(I18n.t("dashboard.kpi.revenue").toUpperCase());
+        if (lblLowKpiTitle   != null) lblLowKpiTitle.setText(I18n.t("dashboard.kpi.low.stock").toUpperCase());
         if (lblLowStockTitle != null) lblLowStockTitle.setText(I18n.t("dashboard.low.stock.title"));
         if (lblTopTitle      != null) lblTopTitle.setText(I18n.t("dashboard.top.products.title"));
-        if (lblChartTitle    != null) lblChartTitle.setText(I18n.t("dashboard.chart.title"));
+        if (lblPieCatTitle   != null) lblPieCatTitle.setText(I18n.t("dashboard.pie.category"));
+        if (emptyStockLbl    != null) emptyStockLbl.setText(I18n.t("dashboard.empty"));
+        if (emptyTopLbl      != null) emptyTopLbl.setText(I18n.t("dashboard.empty"));
+        if (pieCats          != null) pieCats.repaint();
     }
 }

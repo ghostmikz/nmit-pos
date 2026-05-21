@@ -9,8 +9,6 @@ import javax.swing.*;
 import javax.swing.border.EmptyBorder;
 import javax.swing.text.MaskFormatter;
 import java.awt.*;
-import java.awt.event.FocusAdapter;
-import java.awt.event.FocusEvent;
 import java.math.BigDecimal;
 import java.text.MessageFormat;
 import java.text.NumberFormat;
@@ -21,7 +19,7 @@ import java.util.List;
 
 public class ReportsPanel extends JPanel implements LanguageListener {
 
-    // ── palette ─────────────────────────────────────────────────────────────
+    // ── palette ──────────────────────────────────────────────────────────────
     private static final Color ACCENT   = new Color(0x7a1a1a);
     private static final Color BG       = new Color(0xF0F2F5);
     private static final Color CARD_BG  = Color.WHITE;
@@ -36,37 +34,36 @@ public class ReportsPanel extends JPanel implements LanguageListener {
     private static final Color STRIPE   = new Color(0xFAFAFA);
 
     // ── column widths ────────────────────────────────────────────────────────
-    private static final int COL_REC  = 130;
-    private static final int COL_DATE = 130;
-    private static final int COL_CASH = 120;
-    private static final int COL_PAY  = 110;
-    private static final int COL_DISC = 110;
-    private static final int COL_SUB  = 100;
-    private static final int COL_DIS  = 90;
-    private static final int COL_TOT  = 100;
-    private static final int COL_STS  = 100;
+    // COL_REC and COL_CASH are minimum/preferred for flexible columns;
+    // they grow to fill available width via BoxLayout X_AXIS.
+    private static final int COL_IDX  = 40;
+    private static final int COL_REC  = 140;  // flexible (preferred min)
+    private static final int COL_DATE = 110;
+    private static final int COL_CASH = 120;  // flexible (preferred min)
+    private static final int COL_PAY  = 140;
+    private static final int COL_TOT  = 140;
+    private static final int COL_STS  = 110;
     private static final int ROW_H    = 50;
-    private static final int ROW_PAD  = 16;
+    private static final int HDR_H    = 36;
+    private static final int ROW_PAD  = 14;
 
-    @FunctionalInterface
-    public interface ReportLoader { void load(String startDate, String endDate); }
-    @FunctionalInterface
-    public interface PdfExporter  { void export(List<Sale> sales); }
+    @FunctionalInterface public interface ReportLoader { void load(String startDate, String endDate); }
+    @FunctionalInterface public interface PdfExporter  { void export(List<Sale> sales); }
 
-    // ── state ────────────────────────────────────────────────────────────────
-    private final User user;
-    private ReportLoader reportLoader;
-    private PdfExporter  pdfExporter;
-    private List<Sale>   currentSales = new ArrayList<>();
+    // ── state ─────────────────────────────────────────────────────────────────
+    private final User           user;
+    private ReportLoader         reportLoader;
+    private PdfExporter          pdfExporter;
+    private List<Sale>           currentSales = new ArrayList<>();
 
-    // ── controls ─────────────────────────────────────────────────────────────
+    // ── controls ──────────────────────────────────────────────────────────────
     private JFormattedTextField fromField, toField;
     private JPanel              saleListPanel;
     private JLabel              summaryLabel;
     private JLabel              lblTitle;
     private JButton             exportBtn, applyBtn, resetBtn;
     private JLabel              toastLabel;
-    private Timer               toastTimer;
+    private javax.swing.Timer   toastTimer;
 
     public ReportsPanel(User user) {
         this.user = user;
@@ -78,11 +75,11 @@ public class ReportsPanel extends JPanel implements LanguageListener {
     public void setReportLoader(ReportLoader loader) { this.reportLoader = loader; }
     public void setPdfExporter(PdfExporter exporter) { this.pdfExporter = exporter; }
 
-    // ─────────────────────────────────────────────────────────────────────────
+    // ── build ─────────────────────────────────────────────────────────────────
     private void build() {
-        add(buildTopBar(),    BorderLayout.NORTH);
-        add(buildContent(),   BorderLayout.CENTER);
-        add(buildFooter(),    BorderLayout.SOUTH);
+        add(buildTopBar(),  BorderLayout.NORTH);
+        add(buildContent(), BorderLayout.CENTER);
+        add(buildFooter(),  BorderLayout.SOUTH);
     }
 
     private JPanel buildTopBar() {
@@ -93,7 +90,6 @@ public class ReportsPanel extends JPanel implements LanguageListener {
         JPanel left = new JPanel();
         left.setLayout(new BoxLayout(left, BoxLayout.Y_AXIS));
         left.setBackground(CARD_BG);
-
         lblTitle = new JLabel(I18n.t("report.title"));
         lblTitle.setFont(new Font("Dialog", Font.BOLD, 22));
         lblTitle.setForeground(TXT);
@@ -108,21 +104,21 @@ public class ReportsPanel extends JPanel implements LanguageListener {
 
         JPanel wrapper = new JPanel(new BorderLayout());
         wrapper.setBackground(CARD_BG);
-        wrapper.add(bar,          BorderLayout.CENTER);
-        wrapper.add(separator(),  BorderLayout.SOUTH);
+        wrapper.add(bar,         BorderLayout.CENTER);
+        wrapper.add(separator(), BorderLayout.SOUTH);
         return wrapper;
     }
 
     private JPanel buildContent() {
-        JPanel outer = new JPanel(new BorderLayout());
+        JPanel outer = new JPanel(new BorderLayout(0, 10));
         outer.setBackground(BG);
         outer.setBorder(new EmptyBorder(16, 24, 0, 24));
-
         outer.add(buildFilterBar(), BorderLayout.NORTH);
         outer.add(buildTable(),     BorderLayout.CENTER);
         return outer;
     }
 
+    // ── filter bar ────────────────────────────────────────────────────────────
     private JPanel buildFilterBar() {
         JPanel bar = new JPanel(null) {
             @Override protected void paintComponent(Graphics g) {
@@ -136,38 +132,28 @@ public class ReportsPanel extends JPanel implements LanguageListener {
         bar.setOpaque(false);
         bar.setPreferredSize(new Dimension(0, 64));
 
-        // Labels
         JLabel fromLbl = filterLabel(I18n.t("report.from"));
         JLabel toLbl   = filterLabel(I18n.t("report.to"));
-
-        // Date fields
         fromField = dateField();
         toField   = dateField();
 
-        // Defaults: first day of current month → today
-        LocalDate today     = LocalDate.now();
-        LocalDate firstOfM  = today.withDayOfMonth(1);
+        LocalDate today    = LocalDate.now();
+        LocalDate firstOfM = today.withDayOfMonth(1);
         DateTimeFormatter f = DateTimeFormatter.ofPattern("yyyy-MM-dd");
         fromField.setText(firstOfM.format(f));
         toField.setText(today.format(f));
 
         applyBtn = ghostBtn(I18n.t("report.apply"));
         applyBtn.addActionListener(e -> applyFilter());
-
         resetBtn = ghostBtn(I18n.t("report.reset"));
-        resetBtn.addActionListener(e -> {
-            fromField.setText(firstOfM.format(f));
-            toField.setText(today.format(f));
-            applyFilter();
-        });
+        resetBtn.addActionListener(e -> { fromField.setText(firstOfM.format(f)); toField.setText(today.format(f)); applyFilter(); });
 
-        // Layout
         int x = 16;
-        fromLbl.setBounds(x, 12, 60, 16); x += 64;
+        fromLbl.setBounds(x, 12, 60, 16);   x += 64;
         fromField.setBounds(x, 8, 130, 32); x += 138;
-        toLbl.setBounds(x, 12, 40, 16); x += 44;
-        toField.setBounds(x, 8, 130, 32); x += 138;
-        applyBtn.setBounds(x, 10, 80, 30); x += 88;
+        toLbl.setBounds(x, 12, 40, 16);      x += 44;
+        toField.setBounds(x, 8, 130, 32);   x += 138;
+        applyBtn.setBounds(x, 10, 80, 30);  x += 88;
         resetBtn.setBounds(x, 10, 80, 30);
 
         bar.add(fromLbl); bar.add(fromField);
@@ -176,11 +162,12 @@ public class ReportsPanel extends JPanel implements LanguageListener {
 
         JPanel wrapper = new JPanel(new BorderLayout());
         wrapper.setBackground(BG);
-        wrapper.setBorder(new EmptyBorder(0, 0, 12, 0));
+        wrapper.setBorder(new EmptyBorder(0, 0, 8, 0));
         wrapper.add(bar, BorderLayout.CENTER);
         return wrapper;
     }
 
+    // ── table ─────────────────────────────────────────────────────────────────
     private JPanel buildTable() {
         JPanel tableCard = new JPanel(new BorderLayout()) {
             @Override protected void paintComponent(Graphics g) {
@@ -192,31 +179,32 @@ public class ReportsPanel extends JPanel implements LanguageListener {
             }
         };
         tableCard.setOpaque(false);
-
         tableCard.add(buildColumnHeader(), BorderLayout.NORTH);
 
-        saleListPanel = new JPanel();
-        saleListPanel.setLayout(new BoxLayout(saleListPanel, BoxLayout.Y_AXIS));
+        saleListPanel = new ScrollableList();
         saleListPanel.setBackground(CARD_BG);
 
         JScrollPane scroll = new JScrollPane(saleListPanel);
         scroll.setBorder(null);
         scroll.getVerticalScrollBar().setUnitIncrement(16);
         scroll.getViewport().setBackground(CARD_BG);
+        view.MainFrame.modernScrollBar(scroll);
         tableCard.add(scroll, BorderLayout.CENTER);
-
         return tableCard;
     }
 
     private JPanel buildColumnHeader() {
-        return layoutRow(
-            new String[]{"#", I18n.t("report.receipt"), I18n.t("report.date"),
-                         I18n.t("report.cashier"), I18n.t("report.payment"),
-                         I18n.t("report.discount"), I18n.t("report.subtotal"),
-                         I18n.t("report.discount"), I18n.t("report.total"),
-                         I18n.t("report.status")},
-            CARD_BG, MUTED, new Font("Dialog", Font.BOLD, 10), true
-        );
+        JPanel p = makeRowPanel(new Color(0xF8FAFC), HDR_H);
+        p.add(hdrCell("#",                        COL_IDX,  COL_IDX));
+        p.add(hdrCell(I18n.t("report.receipt"),   COL_REC,  Integer.MAX_VALUE));
+        p.add(hdrCell(I18n.t("report.date"),       COL_DATE, COL_DATE));
+        p.add(hdrCell(I18n.t("report.cashier"),   COL_CASH, Integer.MAX_VALUE));
+        p.add(hdrCell(I18n.t("report.payment"),   COL_PAY,  COL_PAY));
+        p.add(hdrCell(I18n.t("report.total"),      COL_TOT,  COL_TOT));
+        p.add(hdrCell(I18n.t("report.status"),    COL_STS,  COL_STS));
+        p.add(Box.createHorizontalStrut(ROW_PAD));
+        p.setBorder(BorderFactory.createMatteBorder(0, 0, 1, 0, SEP));
+        return p;
     }
 
     private JPanel buildFooter() {
@@ -233,8 +221,8 @@ public class ReportsPanel extends JPanel implements LanguageListener {
         summaryLabel.setFont(new Font("Dialog", Font.PLAIN, 13));
         summaryLabel.setForeground(MUTED);
 
-        footer.add(toastLabel,    BorderLayout.WEST);
-        footer.add(summaryLabel,  BorderLayout.EAST);
+        footer.add(toastLabel,   BorderLayout.WEST);
+        footer.add(summaryLabel, BorderLayout.EAST);
 
         JPanel wrapper = new JPanel(new BorderLayout());
         wrapper.setBackground(CARD_BG);
@@ -243,7 +231,7 @@ public class ReportsPanel extends JPanel implements LanguageListener {
         return wrapper;
     }
 
-    // ── public data setters ───────────────────────────────────────────────────
+    // ── public setters ────────────────────────────────────────────────────────
     public void setSaleData(List<Sale> sales) {
         SwingUtilities.invokeLater(() -> {
             this.currentSales = sales != null ? sales : new ArrayList<>();
@@ -257,17 +245,16 @@ public class ReportsPanel extends JPanel implements LanguageListener {
                 empty.setAlignmentX(Component.CENTER_ALIGNMENT);
                 saleListPanel.add(empty);
             } else {
-                BigDecimal total = BigDecimal.ZERO;
+                BigDecimal grandTotal = BigDecimal.ZERO;
                 int idx = 0;
                 for (Sale s : currentSales) {
                     saleListPanel.add(buildSaleRow(s, idx));
                     saleListPanel.add(rowSep());
-                    if (s.getTotal() != null) total = total.add(s.getTotal());
+                    if (s.getTotal() != null) grandTotal = grandTotal.add(s.getTotal());
                     idx++;
                 }
-                BigDecimal finalTotal = total;
                 String summary = MessageFormat.format(I18n.t("report.summary"),
-                        currentSales.size(), "₮" + formatMoney(finalTotal));
+                        currentSales.size(), "₮" + formatMoney(grandTotal));
                 summaryLabel.setText(summary);
             }
 
@@ -294,7 +281,7 @@ public class ReportsPanel extends JPanel implements LanguageListener {
         toastLabel.setText(msg);
         toastLabel.setVisible(true);
         if (toastTimer != null) toastTimer.stop();
-        toastTimer = new Timer(3000, e -> toastLabel.setVisible(false));
+        toastTimer = new javax.swing.Timer(3000, e -> toastLabel.setVisible(false));
         toastTimer.setRepeats(false);
         toastTimer.start();
     }
@@ -305,101 +292,70 @@ public class ReportsPanel extends JPanel implements LanguageListener {
     private JPanel buildSaleRow(Sale s, int rowIndex) {
         Color bg = rowIndex % 2 == 1 ? STRIPE : CARD_BG;
 
-        String receipt  = nullSafe(s.getReceiptNumber(), "—");
-        String date     = shortDate(s.getCreatedAt());
-        String cashier  = nullSafe(s.getCashierName(), "—");
-        String payment  = nullSafe(s.getPaymentMethod(), "—");
-        String discount = nullSafe(s.getDiscountName(), "—");
-        String subtotal = "₮" + formatMoney(s.getSubtotal());
-        String discAmt  = s.getDiscountAmount() != null && s.getDiscountAmount().compareTo(BigDecimal.ZERO) > 0
-                          ? "-₮" + formatMoney(s.getDiscountAmount()) : "—";
-        String total    = "₮" + formatMoney(s.getTotal());
-
-        JPanel row = new JPanel(new BorderLayout());
-        row.setBackground(bg);
-        row.setMaximumSize(new Dimension(Integer.MAX_VALUE, ROW_H));
+        JPanel row = makeRowPanel(bg, ROW_H);
         row.addMouseListener(new java.awt.event.MouseAdapter() {
-            public void mouseEntered(java.awt.event.MouseEvent e) { row.setBackground(HOVER); }
-            public void mouseExited(java.awt.event.MouseEvent e)  { row.setBackground(bg); }
+            public void mouseEntered(java.awt.event.MouseEvent e) { row.setBackground(HOVER); row.repaint(); }
+            public void mouseExited(java.awt.event.MouseEvent e)  { row.setBackground(bg);   row.repaint(); }
         });
 
-        JPanel inner = new JPanel(null) {
-            @Override public void doLayout() {
-                int x = ROW_PAD, h = getHeight();
-                int n = getComponentCount();
-                // widths matching column order
-                int[] widths = { 36, COL_REC, COL_DATE, COL_CASH, COL_PAY,
-                                 COL_DISC, COL_SUB, COL_DIS, COL_TOT, COL_STS };
-                for (int i = 0; i < n; i++) {
-                    Component c = getComponent(i);
-                    int w = (i < widths.length) ? widths[i] : 80;
-                    c.setBounds(x, 0, w, h);
-                    x += w;
-                }
-            }
-        };
-        inner.setBackground(bg);
-        inner.setBorder(new EmptyBorder(0, 0, 0, ROW_PAD));
+        Font plain = new Font("Dialog", Font.PLAIN, 13);
+        Font bold  = new Font("Dialog", Font.BOLD,  13);
 
-        inner.add(rowLabel(String.valueOf(rowIndex + 1), MUTED, Font.PLAIN));
-        inner.add(rowLabel(receipt,  TXT,  Font.BOLD));
-        inner.add(rowLabel(date,     MUTED, Font.PLAIN));
-        inner.add(rowLabel(cashier,  TXT,  Font.PLAIN));
-        inner.add(rowLabel(payment,  MUTED, Font.PLAIN));
-        inner.add(rowLabel(discount, MUTED, Font.PLAIN));
-        inner.add(rowLabel(subtotal, TXT,  Font.PLAIN));
-        inner.add(rowLabel(discAmt,  new Color(0xD97706), Font.PLAIN));
-        inner.add(rowLabel(total,    ACCENT, Font.BOLD));
+        boolean refunded = s.isRefunded();
+        JLabel badge = statusBadge(
+            refunded ? I18n.t("report.status.refunded") : I18n.t("report.status.sold"),
+            refunded ? RED_BG : GREEN_BG,
+            refunded ? RED_CLR : GREEN
+        );
+        badge.setPreferredSize(new Dimension(COL_STS, ROW_H));
+        badge.setMinimumSize(new Dimension(COL_STS, ROW_H));
+        badge.setMaximumSize(new Dimension(COL_STS, ROW_H));
 
-        // status badge
-        boolean refunded  = s.isRefunded();
-        Color badgeBg     = refunded ? RED_BG   : GREEN_BG;
-        Color badgeFg     = refunded ? RED_CLR  : GREEN;
-        String badgeText  = refunded ? I18n.t("report.status.refunded") : I18n.t("report.status.sold");
-        inner.add(statusBadge(badgeText, badgeBg, badgeFg));
-
-        row.add(inner, BorderLayout.CENTER);
+        row.add(dataCell(String.valueOf(rowIndex + 1),              COL_IDX, COL_IDX,           plain, MUTED,  SwingConstants.CENTER));
+        row.add(dataCell(nullSafe(s.getReceiptNumber(), "—"),       COL_REC, Integer.MAX_VALUE,  bold,  TXT,    SwingConstants.LEFT));
+        row.add(dataCell(shortDate(s.getCreatedAt()),               COL_DATE, COL_DATE,          plain, MUTED,  SwingConstants.LEFT));
+        row.add(dataCell(nullSafe(s.getCashierName(), "—"),         COL_CASH, Integer.MAX_VALUE, plain, TXT,    SwingConstants.LEFT));
+        row.add(dataCell(nullSafe(s.getPaymentMethod(), "—"),       COL_PAY,  COL_PAY,           plain, MUTED,  SwingConstants.LEFT));
+        row.add(dataCell("₮" + formatMoney(s.getTotal()),           COL_TOT,  COL_TOT,           bold,  ACCENT, SwingConstants.LEFT));
+        row.add(badge);
+        row.add(Box.createHorizontalStrut(ROW_PAD));
         return row;
     }
 
-    // ── layout helper (shared for header + rows) ──────────────────────────────
-    private JPanel layoutRow(String[] texts, Color bg, Color fg, Font font, boolean isHeader) {
-        JPanel row = new JPanel(null) {
-            @Override public void doLayout() {
-                int x = ROW_PAD, h = getHeight();
-                int[] widths = { 36, COL_REC, COL_DATE, COL_CASH, COL_PAY,
-                                 COL_DISC, COL_SUB, COL_DIS, COL_TOT, COL_STS };
-                for (int i = 0; i < getComponentCount(); i++) {
-                    Component c = getComponent(i);
-                    int w = (i < widths.length) ? widths[i] : 80;
-                    c.setBounds(x, 0, w, h);
-                    x += w;
-                }
-            }
-        };
-        row.setBackground(bg);
-        row.setMaximumSize(new Dimension(Integer.MAX_VALUE, isHeader ? 36 : ROW_H));
-        row.setPreferredSize(new Dimension(Integer.MAX_VALUE, isHeader ? 36 : ROW_H));
-        row.setBorder(isHeader
-            ? new EmptyBorder(0, 0, 0, ROW_PAD)
-            : new EmptyBorder(0, 0, 0, ROW_PAD));
-
-        for (String t : texts) {
-            JLabel l = new JLabel(isHeader ? t.toUpperCase() : t);
-            l.setFont(font);
-            l.setForeground(fg);
-            row.add(l);
-        }
-        return row;
+    // ── row / cell helpers ────────────────────────────────────────────────────
+    private static JPanel makeRowPanel(Color bg, int height) {
+        JPanel p = new JPanel();
+        p.setLayout(new BoxLayout(p, BoxLayout.X_AXIS));
+        p.setBackground(bg);
+        p.setMaximumSize(new Dimension(Integer.MAX_VALUE, height));
+        p.setPreferredSize(new Dimension(0, height));
+        p.add(Box.createHorizontalStrut(ROW_PAD));
+        return p;
     }
 
-    // ── component helpers ─────────────────────────────────────────────────────
-    private JLabel rowLabel(String text, Color fg, int style) {
-        JLabel l = new JLabel(text);
-        l.setFont(new Font("Dialog", style, 13));
-        l.setForeground(fg);
+    private static JLabel hdrCell(String text, int prefW, int maxW) {
+        JLabel l = new JLabel(text.toUpperCase());
+        l.setFont(new Font("Dialog", Font.BOLD, 10));
+        l.setForeground(MUTED);
+        l.setHorizontalAlignment(SwingConstants.LEFT);
+        l.setPreferredSize(new Dimension(prefW, HDR_H));
+        l.setMinimumSize(new Dimension(Math.min(prefW, 30), HDR_H));
+        l.setMaximumSize(new Dimension(maxW, HDR_H));
         return l;
     }
+
+    private static JLabel dataCell(String text, int prefW, int maxW, Font font, Color fg, int align) {
+        JLabel l = new JLabel(text);
+        l.setFont(font);
+        l.setForeground(fg);
+        l.setHorizontalAlignment(align);
+        l.setPreferredSize(new Dimension(prefW, ROW_H));
+        l.setMinimumSize(new Dimension(Math.min(prefW, 30), ROW_H));
+        l.setMaximumSize(new Dimension(maxW, ROW_H));
+        return l;
+    }
+
+    // ── helpers ───────────────────────────────────────────────────────────────
 
     private JLabel statusBadge(String text, Color bg, Color fg) {
         JLabel l = new JLabel(text) {
@@ -432,16 +388,13 @@ public class ReportsPanel extends JPanel implements LanguageListener {
             MaskFormatter mask = new MaskFormatter("####-##-##");
             mask.setPlaceholderCharacter('0');
             f = new JFormattedTextField(mask);
-        } catch (Exception e) {
-            f = new JFormattedTextField();
-        }
+        } catch (Exception e) { f = new JFormattedTextField(); }
         f.setFont(new Font("Dialog", Font.PLAIN, 13));
         f.setForeground(TXT);
         f.setBackground(new Color(0xF8FAFC));
         f.setBorder(BorderFactory.createCompoundBorder(
             BorderFactory.createLineBorder(new Color(0xE2E8F0), 1, true),
             new EmptyBorder(4, 10, 4, 10)));
-        f.setColumns(10);
         return f;
     }
 
@@ -518,10 +471,9 @@ public class ReportsPanel extends JPanel implements LanguageListener {
         return (val == null || val.isBlank()) ? fallback : val;
     }
 
-    private String shortDate(String createdAt) {
-        if (createdAt == null) return "—";
-        // typically "2025-05-20 14:32:00" — return first 10 chars
-        return createdAt.length() >= 10 ? createdAt.substring(0, 10) : createdAt;
+    private String shortDate(String s) {
+        if (s == null) return "—";
+        return s.length() >= 10 ? s.substring(0, 10) : s;
     }
 
     private String formatMoney(BigDecimal val) {
@@ -531,11 +483,23 @@ public class ReportsPanel extends JPanel implements LanguageListener {
         return nf.format(val);
     }
 
-    @Override
-    public void onLanguageChanged() {
+    @Override public void onLanguageChanged() {
         if (lblTitle  != null) lblTitle.setText(I18n.t("report.title"));
         if (exportBtn != null) exportBtn.setText(I18n.t("report.export.pdf"));
         if (applyBtn  != null) applyBtn.setText(I18n.t("report.apply"));
         if (resetBtn  != null) resetBtn.setText(I18n.t("report.reset"));
+    }
+
+    // Y_AXIS list panel that tells the JScrollPane to always match viewport width,
+    // so the X_AXIS rows inside get the full width and every column is visible.
+    private static final class ScrollableList extends JPanel implements Scrollable {
+        ScrollableList() {
+            setLayout(new BoxLayout(this, BoxLayout.Y_AXIS));
+        }
+        @Override public Dimension getPreferredScrollableViewportSize() { return getPreferredSize(); }
+        @Override public int  getScrollableUnitIncrement(Rectangle r, int o, int d)  { return 16; }
+        @Override public int  getScrollableBlockIncrement(Rectangle r, int o, int d) { return 80; }
+        @Override public boolean getScrollableTracksViewportWidth()  { return true;  }
+        @Override public boolean getScrollableTracksViewportHeight() { return false; }
     }
 }

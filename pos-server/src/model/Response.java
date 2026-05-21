@@ -1,10 +1,10 @@
 package model;
 
-// Server → Client JSON wrapper
-// {"status":"OK","message":null,"data":{...}}
-// {"status":"ERROR","message":"Invalid credentials","data":null}
-public class Response {
-    private String status;  // OK | ERROR
+import java.io.Serializable;
+
+public class Response implements Serializable {
+    private static final long serialVersionUID = 1L;
+    private String status;
     private String message;
     private Object data;
 

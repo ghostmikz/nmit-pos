@@ -1,11 +1,9 @@
 package controller;
 
 import client.SocketClient;
-import com.google.gson.Gson;
-import com.google.gson.JsonObject;
-import com.google.gson.reflect.TypeToken;
 import model.Category;
 import model.Product;
+import model.Response;
 import model.User;
 import view.panels.InventoryPanel;
 
@@ -19,8 +17,6 @@ import java.util.function.Consumer;
 
 public class InventoryController {
 
-    private static final Gson GSON = new Gson();
-
     private final InventoryPanel view;
     private final User           user;
 
@@ -33,7 +29,6 @@ public class InventoryController {
         view.setCategoryDeleter(this::deleteCategory);
         view.setImageLoader(this::loadImage);
         loadData();
-        // Reload whenever the panel is navigated to so stock is always fresh
         view.addHierarchyListener(e -> {
             if ((e.getChangeFlags() & java.awt.event.HierarchyEvent.SHOWING_CHANGED) != 0
                     && view.isShowing()) {
@@ -41,8 +36,6 @@ public class InventoryController {
             }
         });
     }
-
-    // ── Initial load ──────────────────────────────────────────────────────────
 
     private void loadData() {
         new SwingWorker<Void, Void>() {
@@ -55,16 +48,21 @@ public class InventoryController {
                     if (!SocketClient.getInstance().isConnected())
                         SocketClient.getInstance().connect();
 
-                    JsonObject r1 = SocketClient.getInstance().send("GET_CATEGORIES", user.getToken());
-                    if ("OK".equals(r1.get("status").getAsString()))
-                        categories = GSON.fromJson(r1.get("data"), new TypeToken<List<Category>>(){}.getType());
+                    Response r1 = SocketClient.getInstance().send("GET_CATEGORIES", user.getToken());
+                    if ("OK".equals(r1.getStatus())) {
+                        @SuppressWarnings("unchecked")
+                        List<Category> c = (List<Category>) r1.getData();
+                        categories = c;
+                    }
 
-                    JsonObject r2 = SocketClient.getInstance().send("GET_PRODUCTS", user.getToken());
-                    if ("OK".equals(r2.get("status").getAsString()))
-                        products = GSON.fromJson(r2.get("data"), new TypeToken<List<Product>>(){}.getType());
-
+                    Response r2 = SocketClient.getInstance().send("GET_PRODUCTS", user.getToken());
+                    if ("OK".equals(r2.getStatus())) {
+                        @SuppressWarnings("unchecked")
+                        List<Product> p = (List<Product>) r2.getData();
+                        products = p;
+                    }
                 } catch (Exception e) {
-                    error = "Серверт холбогдож чадсангүй: " + e.getMessage();
+                    error = e.getMessage();
                 }
                 return null;
             }
@@ -77,28 +75,24 @@ public class InventoryController {
         }.execute();
     }
 
-    // ── Product save (add or update) ──────────────────────────────────────────
-
     private void saveProduct(Product p, byte[] imageBytes, boolean imageChanged, Runnable onSuccess) {
         boolean isNew = p.getId() == 0;
-        new SwingWorker<JsonObject, Void>() {
+        new SwingWorker<Response, Void>() {
             int newId = -1;
 
-            @Override protected JsonObject doInBackground() throws Exception {
-                JsonObject res = SocketClient.getInstance()
+            @Override protected Response doInBackground() throws Exception {
+                Response res = SocketClient.getInstance()
                     .send(isNew ? "ADD_PRODUCT" : "UPDATE_PRODUCT", user.getToken(), p);
-                if ("OK".equals(res.get("status").getAsString()) && isNew) {
-                    Object data = res.get("data");
-                    if (data instanceof com.google.gson.JsonPrimitive jp) newId = jp.getAsInt();
-                }
+                if ("OK".equals(res.getStatus()) && isNew && res.getData() instanceof Integer id)
+                    newId = id;
                 return res;
             }
 
             @Override protected void done() {
                 try {
-                    JsonObject res = get();
-                    if (!"OK".equals(res.get("status").getAsString())) {
-                        view.showError(res.get("message").getAsString());
+                    Response res = get();
+                    if (!"OK".equals(res.getStatus())) {
+                        view.showError(res.getMessage());
                         return;
                     }
                     int targetId = isNew ? newId : p.getId();
@@ -114,22 +108,20 @@ public class InventoryController {
         }.execute();
     }
 
-    // ── Product delete ────────────────────────────────────────────────────────
-
     private void deleteProduct(int productId, Runnable onSuccess) {
         Map<String, Object> data = new HashMap<>();
         data.put("productId", productId);
-        new SwingWorker<JsonObject, Void>() {
-            @Override protected JsonObject doInBackground() throws Exception {
+        new SwingWorker<Response, Void>() {
+            @Override protected Response doInBackground() throws Exception {
                 return SocketClient.getInstance().send("DELETE_PRODUCT", user.getToken(), data);
             }
             @Override protected void done() {
                 try {
-                    JsonObject res = get();
-                    if ("OK".equals(res.get("status").getAsString())) {
+                    Response res = get();
+                    if ("OK".equals(res.getStatus())) {
                         SwingUtilities.invokeLater(() -> { onSuccess.run(); loadData(); });
                     } else {
-                        SwingUtilities.invokeLater(() -> view.showError(res.get("message").getAsString()));
+                        SwingUtilities.invokeLater(() -> view.showError(res.getMessage()));
                     }
                 } catch (Exception e) {
                     SwingUtilities.invokeLater(() -> view.showError(e.getMessage()));
@@ -138,16 +130,14 @@ public class InventoryController {
         }.execute();
     }
 
-    // ── Image load ────────────────────────────────────────────────────────────
-
     private void loadImage(int productId, Consumer<String> callback) {
         new SwingWorker<String, Void>() {
             @Override protected String doInBackground() throws Exception {
                 Map<String, Object> data = new HashMap<>();
                 data.put("productId", productId);
-                JsonObject res = SocketClient.getInstance().send("GET_PRODUCT_IMAGE", user.getToken(), data);
-                if ("OK".equals(res.get("status").getAsString()) && !res.get("data").isJsonNull())
-                    return res.get("data").getAsString();
+                Response res = SocketClient.getInstance().send("GET_PRODUCT_IMAGE", user.getToken(), data);
+                if ("OK".equals(res.getStatus()) && res.getData() != null)
+                    return (String) res.getData();
                 return null;
             }
             @Override protected void done() {
@@ -155,8 +145,6 @@ public class InventoryController {
             }
         }.execute();
     }
-
-    // ── Image upload ──────────────────────────────────────────────────────────
 
     private void uploadImage(int productId, byte[] bytes, Runnable onSuccess) {
         Map<String, Object> data = new HashMap<>();
@@ -173,25 +161,23 @@ public class InventoryController {
         }.execute();
     }
 
-    // ── Category save ─────────────────────────────────────────────────────────
-
     private void saveCategory(Category c, boolean isNew, Runnable onSuccess) {
         Map<String, Object> data = new HashMap<>();
         data.put("name", c.getName());
         if (!isNew) data.put("id", c.getId());
 
-        new SwingWorker<JsonObject, Void>() {
-            @Override protected JsonObject doInBackground() throws Exception {
+        new SwingWorker<Response, Void>() {
+            @Override protected Response doInBackground() throws Exception {
                 return SocketClient.getInstance()
                     .send(isNew ? "ADD_CATEGORY" : "UPDATE_CATEGORY", user.getToken(), data);
             }
             @Override protected void done() {
                 try {
-                    JsonObject res = get();
-                    if ("OK".equals(res.get("status").getAsString())) {
+                    Response res = get();
+                    if ("OK".equals(res.getStatus())) {
                         SwingUtilities.invokeLater(() -> { onSuccess.run(); loadData(); });
                     } else {
-                        SwingUtilities.invokeLater(() -> view.showError(res.get("message").getAsString()));
+                        SwingUtilities.invokeLater(() -> view.showError(res.getMessage()));
                     }
                 } catch (Exception e) {
                     SwingUtilities.invokeLater(() -> view.showError(e.getMessage()));
@@ -200,22 +186,20 @@ public class InventoryController {
         }.execute();
     }
 
-    // ── Category delete ───────────────────────────────────────────────────────
-
     private void deleteCategory(int catId, Runnable onSuccess, Consumer<String> onError) {
         Map<String, Object> data = new HashMap<>();
         data.put("id", catId);
-        new SwingWorker<JsonObject, Void>() {
-            @Override protected JsonObject doInBackground() throws Exception {
+        new SwingWorker<Response, Void>() {
+            @Override protected Response doInBackground() throws Exception {
                 return SocketClient.getInstance().send("DELETE_CATEGORY", user.getToken(), data);
             }
             @Override protected void done() {
                 try {
-                    JsonObject res = get();
-                    if ("OK".equals(res.get("status").getAsString())) {
+                    Response res = get();
+                    if ("OK".equals(res.getStatus())) {
                         SwingUtilities.invokeLater(() -> { onSuccess.run(); loadData(); });
                     } else {
-                        SwingUtilities.invokeLater(() -> onError.accept(res.get("message").getAsString()));
+                        SwingUtilities.invokeLater(() -> onError.accept(res.getMessage()));
                     }
                 } catch (Exception e) {
                     SwingUtilities.invokeLater(() -> onError.accept(e.getMessage()));

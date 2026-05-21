@@ -24,14 +24,16 @@ public class CategoryDAO {
     }
 
     public Category add(String name) throws SQLException {
-        String sql = "CALL sp_add_category(?)";
-        try (CallableStatement cs = DatabaseConnection.getInstance().prepareCall(sql)) {
+        try (CallableStatement cs = DatabaseConnection.getInstance().prepareCall("CALL sp_add_category(?)")) {
             cs.setString(1, name);
-            ResultSet rs = cs.executeQuery();
+            cs.execute();
+        }
+        try (Statement st = DatabaseConnection.getInstance().createStatement();
+             ResultSet rs = st.executeQuery("SELECT LAST_INSERT_ID()")) {
             if (rs.next()) {
                 Category c = new Category();
-                c.setId(rs.getInt("category_id"));
-                c.setName(rs.getString("name"));
+                c.setId(rs.getInt(1));
+                c.setName(name);
                 return c;
             }
         }
@@ -39,8 +41,7 @@ public class CategoryDAO {
     }
 
     public void update(int id, String name) throws SQLException {
-        String sql = "CALL sp_update_category(?,?)";
-        try (CallableStatement cs = DatabaseConnection.getInstance().prepareCall(sql)) {
+        try (CallableStatement cs = DatabaseConnection.getInstance().prepareCall("CALL sp_update_category(?,?)")) {
             cs.setInt(1, id);
             cs.setString(2, name);
             cs.execute();
@@ -48,8 +49,7 @@ public class CategoryDAO {
     }
 
     public void delete(int id) throws SQLException {
-        String sql = "CALL sp_delete_category(?)";
-        try (CallableStatement cs = DatabaseConnection.getInstance().prepareCall(sql)) {
+        try (CallableStatement cs = DatabaseConnection.getInstance().prepareCall("CALL sp_delete_category(?)")) {
             cs.setInt(1, id);
             cs.execute();
         }

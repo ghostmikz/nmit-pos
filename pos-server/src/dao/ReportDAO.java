@@ -73,4 +73,22 @@ public class ReportDAO {
         return list;
     }
 
+    public List<Map<String, Object>> getCategoryRevenue() throws SQLException {
+        List<Map<String, Object>> list = new ArrayList<>();
+        String sql = "SELECT category_name, SUM(total_revenue) AS totalRevenue " +
+                     "FROM view_top_products " +
+                     "GROUP BY category_name " +
+                     "ORDER BY totalRevenue DESC";
+        try (Statement st = DatabaseConnection.getInstance().createStatement();
+             ResultSet rs = st.executeQuery(sql)) {
+            while (rs.next()) {
+                Map<String, Object> row = new HashMap<>();
+                row.put("categoryName", rs.getString("category_name"));
+                row.put("totalRevenue", rs.getBigDecimal("totalRevenue"));
+                list.add(row);
+            }
+        }
+        return list;
+    }
+
 }
