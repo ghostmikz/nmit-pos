@@ -11,6 +11,8 @@ import java.util.Map;
 
 public class LoginHandler {
 
+    private static final UserDAO DAO = new UserDAO();
+
     public static Response handle(Request req) {
         try {
             @SuppressWarnings("unchecked")
@@ -18,8 +20,7 @@ public class LoginHandler {
             String username = data.get("username");
             String password = data.get("password");
 
-            UserDAO dao = new UserDAO();
-            User user = dao.findByUsername(username);
+            User user = DAO.findByUsername(username);
 
             if (user == null) return Response.error("User not found");
 

@@ -1,5 +1,7 @@
 package view.panels;
 
+import static view.AppColors.*;
+
 import i18n.I18n;
 import i18n.LanguageListener;
 import model.Category;
@@ -45,19 +47,11 @@ public class InventoryPanel extends JPanel implements LanguageListener {
         void load(int productId, Consumer<String> callback);
     }
 
-    // ── Colors (match POSPanel) ───────────────────────────────────────────────
-    private static final Color ACCENT   = new Color(0x7a1a1a);
-    private static final Color BG       = new Color(0xF0F2F5);
-    private static final Color TXT      = new Color(0x1E293B);
-    private static final Color MUTED    = new Color(0x64748B);
-    private static final Color PILL_BG  = new Color(0xE2E8F0);
-    private static final Color SEP      = new Color(0xF1F5F9);
-    private static final Color GREEN    = new Color(0x16A34A);
-    private static final Color GREEN_BG = new Color(0xDCFCE7);
-    private static final Color AMBER    = new Color(0xD97706);
-    private static final Color AMBER_BG = new Color(0xFEF3C7);
-    private static final Color RED_CLR  = new Color(0xDC2626);
-    private static final Color RED_BG   = new Color(0xFEE2E2);
+    // ── Colors ────────────────────────────────────────────────────────────────
+    private static final Color SEP         = new Color(0xF1F5F9);
+    private static final Color ROW_HOVER_C = new Color(0xFDF9F9);  // inventory row hover (subtle red tint)
+    private static final Color CAT_HOVER_C = new Color(0xFDF2F2);  // category selected bg
+    private static final Color IMG_HINT_C  = new Color(0xA0AABA);  // image placeholder hint text (disabled-style)
 
     static final Color[] CAT_COLORS = {
         new Color(0x2C9B6A), new Color(0xD97706), new Color(0x2563EB),
@@ -116,8 +110,43 @@ public class InventoryPanel extends JPanel implements LanguageListener {
         this.user = user;
         setLayout(new BorderLayout());
         setBackground(BG);
-        add(buildLeft(),  BorderLayout.WEST);
-        add(buildRight(), BorderLayout.CENTER);
+        setBorder(new EmptyBorder(12, 12, 12, 12));
+
+        JPanel leftCard = roundedCard(Color.WHITE, 12);
+        leftCard.setLayout(new BorderLayout());
+        leftCard.setPreferredSize(new Dimension(224, 0));
+        leftCard.add(buildLeft(), BorderLayout.CENTER);
+
+        JPanel rightCard = roundedCard(Color.WHITE, 12);
+        rightCard.setLayout(new BorderLayout());
+        rightCard.add(buildRight(), BorderLayout.CENTER);
+
+        JPanel row = new JPanel(new BorderLayout(10, 0));
+        row.setOpaque(false);
+        row.add(leftCard,  BorderLayout.WEST);
+        row.add(rightCard, BorderLayout.CENTER);
+        add(row, BorderLayout.CENTER);
+    }
+
+    private static JPanel roundedCard(Color bg, int r) {
+        return new JPanel() {
+            { setOpaque(false); }
+            @Override public boolean isOpaque() { return false; }
+            @Override protected void paintComponent(Graphics g) {
+                Graphics2D g2 = (Graphics2D) g.create();
+                g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+                g2.setColor(bg);
+                g2.fillRoundRect(0, 0, getWidth(), getHeight(), r, r);
+                g2.dispose();
+            }
+            @Override protected void paintChildren(Graphics g) {
+                Graphics2D g2 = (Graphics2D) g.create();
+                g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+                g2.setClip(new java.awt.geom.RoundRectangle2D.Float(0, 0, getWidth(), getHeight(), r, r));
+                super.paintChildren(g2);
+                g2.dispose();
+            }
+        };
     }
 
     // ── Public API ────────────────────────────────────────────────────────────
@@ -157,7 +186,7 @@ public class InventoryPanel extends JPanel implements LanguageListener {
         searchPlaceholder = I18n.t("inventory.search");
         if (searchField != null && searchQuery.isEmpty()) {
             searchField.setText(searchPlaceholder);
-            searchField.setForeground(new Color(0x64748B));
+            searchField.setForeground(MUTED);
         }
         topTitle.setText(I18n.t("inventory.title"));
         addProdBtn.setText(I18n.t("inventory.add"));
@@ -174,8 +203,6 @@ public class InventoryPanel extends JPanel implements LanguageListener {
     private JPanel buildLeft() {
         JPanel panel = new JPanel(new BorderLayout());
         panel.setBackground(Color.WHITE);
-        panel.setPreferredSize(new Dimension(224, 0));
-        panel.setBorder(BorderFactory.createMatteBorder(0, 0, 0, 1, new Color(0xE2E8F0)));
 
         // Header
         JPanel header = new JPanel(new BorderLayout(0, 0));
@@ -184,19 +211,22 @@ public class InventoryPanel extends JPanel implements LanguageListener {
         JLabel title = new JLabel(I18n.t("inventory.cat.header"));
         title.setFont(new Font("Dialog", Font.BOLD, 11));
         title.setForeground(MUTED);
-        JButton addBtn = new JButton("+") {
+        JButton addBtn = new JButton() {
             @Override protected void paintComponent(Graphics g) {
                 Graphics2D g2 = (Graphics2D) g.create();
                 g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
-                g2.setColor(PILL_BG);
+                g2.setColor(BORDER);
                 g2.fillRoundRect(0, 0, getWidth(), getHeight(), 6, 6);
+                g2.setFont(getFont());
+                g2.setColor(MUTED);
+                FontMetrics fm = g2.getFontMetrics();
+                String s = "+";
+                g2.drawString(s, (getWidth()-fm.stringWidth(s))/2, (getHeight()+fm.getAscent()-fm.getDescent())/2);
                 g2.dispose();
-                super.paintComponent(g);
             }
             @Override public boolean isOpaque() { return false; }
         };
         addBtn.setFont(new Font("Dialog", Font.BOLD, 16));
-        addBtn.setForeground(MUTED);
         addBtn.setPreferredSize(new Dimension(26, 26));
         addBtn.setBorderPainted(false);
         addBtn.setFocusPainted(false);
@@ -211,9 +241,9 @@ public class InventoryPanel extends JPanel implements LanguageListener {
             @Override protected void paintComponent(Graphics g) {
                 Graphics2D g2 = (Graphics2D) g.create();
                 g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
-                g2.setColor(new Color(0xF8FAFC));
+                g2.setColor(SURFACE);
                 g2.fillRoundRect(0, 0, getWidth(), getHeight(), 8, 8);
-                g2.setColor(new Color(0xE2E8F0));
+                g2.setColor(BORDER);
                 g2.drawRoundRect(0, 0, getWidth()-1, getHeight()-1, 8, 8);
                 g2.dispose();
             }
@@ -284,14 +314,14 @@ public class InventoryPanel extends JPanel implements LanguageListener {
 
     private JPanel catItem(int catId, String name, int count, Category cat) {
         boolean active = catId == selectedCatId;
-        Color dot = cat != null ? catColor(cat.getId()) : new Color(0x94A3B8);
+        Color dot = cat != null ? catColor(cat.getId()) : SCROLL_THUMB_HV;
 
         JPanel item = new JPanel(new BorderLayout(8, 0)) {
             @Override protected void paintComponent(Graphics g) {
                 if (active) {
                     Graphics2D g2 = (Graphics2D) g.create();
                     g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
-                    g2.setColor(new Color(0xFDF2F2));
+                    g2.setColor(CAT_HOVER_C);
                     g2.fillRoundRect(0, 0, getWidth(), getHeight(), 8, 8);
                     g2.dispose();
                 }
@@ -318,7 +348,7 @@ public class InventoryPanel extends JPanel implements LanguageListener {
         dotWrap.setPreferredSize(new Dimension(10, 8));
 
         JLabel nameLbl = new JLabel(name);
-        nameLbl.setFont(new Font("Dialog", active ? Font.BOLD : Font.PLAIN, 13));
+        nameLbl.setFont(new Font("Dialog", Font.PLAIN, 13));
         nameLbl.setForeground(active ? ACCENT : TXT);
 
         JLabel cntLbl = new JLabel(String.valueOf(count));
@@ -345,7 +375,7 @@ public class InventoryPanel extends JPanel implements LanguageListener {
         JMenuItem edit = new JMenuItem(I18n.t("inventory.ctx.edit"));
         edit.addActionListener(e -> openCategoryDialog(cat));
         JMenuItem del = new JMenuItem(I18n.t("inventory.ctx.delete"));
-        del.setForeground(RED_CLR);
+        del.setForeground(RED);
         del.addActionListener(e -> confirmDeleteCat(cat));
         m.add(edit); m.addSeparator(); m.add(del);
         m.show(src, x, y);
@@ -354,14 +384,12 @@ public class InventoryPanel extends JPanel implements LanguageListener {
     // ── Right: product area ───────────────────────────────────────────────────
     private JPanel buildRight() {
         JPanel area = new JPanel(new BorderLayout());
-        area.setBackground(BG);
+        area.setBackground(Color.WHITE);
 
         // Top bar
         JPanel topBar = new JPanel(new BorderLayout());
         topBar.setBackground(Color.WHITE);
-        topBar.setBorder(BorderFactory.createCompoundBorder(
-            BorderFactory.createMatteBorder(0, 0, 1, 0, new Color(0xE2E8F0)),
-            new EmptyBorder(14, 20, 14, 20)));
+        topBar.setBorder(new EmptyBorder(14, 20, 10, 20));
         topTitle = new JLabel(I18n.t("inventory.title"));
         topTitle.setFont(new Font("Dialog", Font.BOLD, 20));
         topTitle.setForeground(TXT);
@@ -389,8 +417,10 @@ public class InventoryPanel extends JPanel implements LanguageListener {
 
         // Filter bar
         JPanel filterBar = new JPanel(new BorderLayout(12, 0));
-        filterBar.setBackground(BG);
-        filterBar.setBorder(new EmptyBorder(14, 20, 10, 20));
+        filterBar.setBackground(Color.WHITE);
+        filterBar.setBorder(BorderFactory.createCompoundBorder(
+            BorderFactory.createMatteBorder(0, 0, 1, 0, new Color(0xE2E8F0)),
+            new EmptyBorder(6, 20, 10, 20)));
 
         // Search
         JPanel searchWrap = new JPanel(new BorderLayout(8, 0)) {
@@ -399,7 +429,7 @@ public class InventoryPanel extends JPanel implements LanguageListener {
                 g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
                 g2.setColor(Color.WHITE);
                 g2.fillRoundRect(0, 0, getWidth(), getHeight(), 10, 10);
-                g2.setColor(new Color(0xE2E8F0));
+                g2.setColor(BORDER);
                 g2.drawRoundRect(0, 0, getWidth()-1, getHeight()-1, 10, 10);
                 g2.dispose();
             }
@@ -445,7 +475,7 @@ public class InventoryPanel extends JPanel implements LanguageListener {
             filterChips[i].addActionListener(e -> {
                 stockFilter = chipVals[idx];
                 currentPage = 1;
-                for (JButton c : filterChips) { c.setBackground(PILL_BG); c.setForeground(new Color(0x475569)); }
+                for (JButton c : filterChips) { c.setBackground(BORDER); c.setForeground(new Color(0x475569)); }
                 filterChips[idx].setBackground(ACCENT);
                 filterChips[idx].setForeground(Color.WHITE);
                 refreshList();
@@ -472,18 +502,18 @@ public class InventoryPanel extends JPanel implements LanguageListener {
 
         JPanel tableCard = new JPanel(new BorderLayout());
         tableCard.setBackground(Color.WHITE);
-        tableCard.setBorder(BorderFactory.createCompoundBorder(
-            new EmptyBorder(0, 20, 0, 20),
-            BorderFactory.createLineBorder(new Color(0xE2E8F0))));
         tableCard.add(colHeader, BorderLayout.NORTH);
         tableCard.add(scroll,    BorderLayout.CENTER);
 
-        // Pagination
+        // Pagination — white bar with top separator
         paginationPanel = new JPanel(new FlowLayout(FlowLayout.RIGHT, 4, 0));
-        paginationPanel.setOpaque(false);
-        paginationPanel.setBorder(new EmptyBorder(10, 20, 14, 20));
+        paginationPanel.setOpaque(true);
+        paginationPanel.setBackground(Color.WHITE);
+        paginationPanel.setBorder(BorderFactory.createCompoundBorder(
+            BorderFactory.createMatteBorder(1, 0, 0, 0, new Color(0xE2E8F0)),
+            new EmptyBorder(10, 20, 12, 20)));
 
-        // Toast
+        // Toast — compact floating bar at bottom
         toastLabel = new JLabel("", SwingConstants.CENTER);
         toastLabel.setFont(new Font("Dialog", Font.PLAIN, 13));
         toastLabel.setForeground(Color.WHITE);
@@ -493,12 +523,12 @@ public class InventoryPanel extends JPanel implements LanguageListener {
         toastLabel.setVisible(false);
 
         JPanel center = new JPanel(new BorderLayout());
-        center.setBackground(BG);
+        center.setBackground(Color.WHITE);
         center.add(tableCard,      BorderLayout.CENTER);
         center.add(paginationPanel,BorderLayout.SOUTH);
 
         JPanel mainContent = new JPanel(new BorderLayout());
-        mainContent.setBackground(BG);
+        mainContent.setBackground(Color.WHITE);
         mainContent.add(filterBar, BorderLayout.NORTH);
         mainContent.add(center,    BorderLayout.CENTER);
         mainContent.add(toastLabel,BorderLayout.SOUTH);
@@ -660,7 +690,7 @@ public class InventoryPanel extends JPanel implements LanguageListener {
         statusWrap.setOpaque(false);
         statusWrap.setBorder(new EmptyBorder(0, ROW_PAD, 0, 0));
         String stTxt; Color stFg, stBg;
-        if (p.getStockQuantity() == 0)                                         { stTxt = I18n.t("inventory.status.out"); stFg = RED_CLR;  stBg = RED_BG;   }
+        if (p.getStockQuantity() == 0)                                         { stTxt = I18n.t("inventory.status.out"); stFg = RED;  stBg = RED_BG;   }
         else if (p.getStockQuantity() <= p.getLowStockAlert())                  { stTxt = I18n.t("inventory.status.low"); stFg = AMBER;    stBg = AMBER_BG; }
         else                                                                    { stTxt = I18n.t("inventory.status.in");  stFg = GREEN;    stBg = GREEN_BG; }
         final Color _fg = stFg, _bg = stBg;
@@ -684,7 +714,7 @@ public class InventoryPanel extends JPanel implements LanguageListener {
         JPanel actions = new JPanel(new GridBagLayout());
         actions.setOpaque(false);
         JButton editBtn = tinyBtn(I18n.t("inventory.ctx.edit"), ACCENT);
-        JButton delBtn  = tinyBtn(I18n.t("inventory.ctx.delete"), RED_CLR);
+        JButton delBtn  = tinyBtn(I18n.t("inventory.ctx.delete"), RED);
         editBtn.addActionListener(e -> openProductDialog(p));
         delBtn.addActionListener(e  -> confirmDeleteProduct(p));
         { GridBagConstraints ac = new GridBagConstraints(); ac.insets = new Insets(0, 2, 0, 2); ac.gridx = 0; actions.add(editBtn, ac); ac.gridx = 1; actions.add(delBtn, ac); }
@@ -698,7 +728,7 @@ public class InventoryPanel extends JPanel implements LanguageListener {
 
         // Hover + right-click
         MouseAdapter ma = new MouseAdapter() {
-            @Override public void mouseEntered(MouseEvent e) { row.setBackground(new Color(0xFDF9F9)); row.repaint(); }
+            @Override public void mouseEntered(MouseEvent e) { row.setBackground(ROW_HOVER_C); row.repaint(); }
             @Override public void mouseExited(MouseEvent e)  { row.setBackground(Color.WHITE);         row.repaint(); }
             @Override public void mouseReleased(MouseEvent e) {
                 if (SwingUtilities.isRightMouseButton(e)) showProductMenu(p, row, e.getX(), e.getY());
@@ -731,7 +761,7 @@ public class InventoryPanel extends JPanel implements LanguageListener {
         JMenuItem dup  = new JMenuItem(I18n.t("inventory.ctx.duplicate"));
         dup.addActionListener(e -> duplicateProduct(p));
         JMenuItem del  = new JMenuItem(I18n.t("inventory.ctx.delete"));
-        del.setForeground(RED_CLR);
+        del.setForeground(RED);
         del.addActionListener(e -> confirmDeleteProduct(p));
         m.add(edit); m.add(dup); m.addSeparator(); m.add(del);
         m.show(src, x, y);
@@ -807,7 +837,12 @@ public class InventoryPanel extends JPanel implements LanguageListener {
         JTextField fBarcode = styledField(isNew ? "" : val(edit.getBarcode()));
         JTextField fPrice   = styledField(isNew ? "" : edit.getPrice().toPlainString());
         JTextField fCost    = styledField(isNew || edit.getCostPrice() == null ? "" : edit.getCostPrice().toPlainString());
-        JTextField fQty     = styledField(isNew ? "0" : String.valueOf(edit.getStockQuantity()));
+        JTextField fQty     = new JTextField(isNew ? "0" : String.valueOf(edit.getStockQuantity()));
+        fQty.setFont(new Font("Dialog", Font.PLAIN, 13));
+        fQty.setOpaque(false);
+        fQty.setBorder(new EmptyBorder(0, 4, 0, 4));
+        fQty.setHorizontalAlignment(JTextField.CENTER);
+        JPanel     fQtyStepper = makeStepper(fQty);
         JTextField fAlert   = styledField(isNew ? "10" : String.valueOf(edit.getLowStockAlert()));
         JTextField fExpiry  = styledField(isNew ? "" : val(edit.getExpiryDate()));
 
@@ -845,7 +880,7 @@ public class InventoryPanel extends JPanel implements LanguageListener {
         body.add(vs(10));
         body.add(formRow(
             I18n.t("inventory.form.cost"), fCost,
-            I18n.t("inventory.form.qty"), fQty));
+            I18n.t("inventory.form.qty"), fQtyStepper));
         body.add(vs(10));
         body.add(formRow(
             I18n.t("inventory.form.alert"), fAlert,
@@ -986,7 +1021,7 @@ public class InventoryPanel extends JPanel implements LanguageListener {
             Graphics2D g2 = (Graphics2D) g.create();
             g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING,  RenderingHints.VALUE_ANTIALIAS_ON);
             g2.setRenderingHint(RenderingHints.KEY_INTERPOLATION, RenderingHints.VALUE_INTERPOLATION_BICUBIC);
-            g2.setColor(new Color(0xF1F5F9));
+            g2.setColor(CHIP_BG);
             g2.fillRoundRect(0, 0, getWidth(), getHeight(), 10, 10);
             if (displayImage != null) {
                 int iw = displayImage.getWidth(null), ih = displayImage.getHeight(null);
@@ -998,12 +1033,12 @@ public class InventoryPanel extends JPanel implements LanguageListener {
                 ImageIcon cam = view.MainFrame.assetSq("/assets/icons/camera.png", 28);
                 if (cam != null) g2.drawImage(cam.getImage(), (getWidth()-28)/2, (getHeight()-28)/2-10, 28, 28, null);
                 g2.setFont(new Font("Dialog", Font.PLAIN, 12));
-                g2.setColor(new Color(0x94A3B8));
+                g2.setColor(SCROLL_THUMB_HV);
                 FontMetrics fm = g2.getFontMetrics();
                 String hint = "Click to upload image";
                 g2.drawString(hint, (getWidth()-fm.stringWidth(hint))/2, getHeight()/2+18);
             }
-            g2.setColor(new Color(0xCBD5E1));
+            g2.setColor(SCROLL_THUMB);
             g2.setStroke(new BasicStroke(1.2f, BasicStroke.CAP_ROUND, BasicStroke.JOIN_ROUND, 0, new float[]{4}, 0));
             g2.drawRoundRect(0, 0, getWidth()-1, getHeight()-1, 10, 10);
             g2.dispose();
@@ -1012,20 +1047,59 @@ public class InventoryPanel extends JPanel implements LanguageListener {
 
     // ── Dialog helpers ────────────────────────────────────────────────────────
     private JDialog makeDialog(String title) {
-        JDialog dlg = new JDialog(SwingUtilities.getWindowAncestor(this), title, Dialog.ModalityType.APPLICATION_MODAL);
+        JDialog dlg = new JDialog(SwingUtilities.getWindowAncestor(this), Dialog.ModalityType.APPLICATION_MODAL);
+        dlg.setUndecorated(true);
         dlg.setBackground(Color.WHITE);
         dlg.setLayout(new BorderLayout());
+        dlg.getRootPane().setBorder(BorderFactory.createLineBorder(new Color(0xCDD5E0)));
+
         JPanel header = new JPanel(new BorderLayout());
-        header.setBackground(Color.WHITE);
-        header.setBorder(BorderFactory.createCompoundBorder(
-            BorderFactory.createMatteBorder(0, 0, 1, 0, new Color(0xE2E8F0)),
-            new EmptyBorder(16, 24, 14, 16)));
-        JLabel t = new JLabel(title); t.setFont(new Font("Dialog", Font.BOLD, 15)); t.setForeground(TXT);
-        JButton x = new JButton("×"); x.setFont(new Font("Dialog", Font.PLAIN, 18)); x.setForeground(MUTED);
-        x.setContentAreaFilled(false); x.setBorderPainted(false); x.setFocusPainted(false);
+        header.setBackground(SIDEBAR);
+        header.setPreferredSize(new Dimension(0, 40));
+
+        JLabel t = new JLabel(title);
+        t.setFont(new Font("Dialog", Font.BOLD, 14));
+        t.setForeground(Color.WHITE);
+        t.setBorder(new EmptyBorder(0, 16, 0, 0));
+
+        JButton x = new JButton() {
+            @Override protected void paintComponent(Graphics g) {
+                Graphics2D g2 = (Graphics2D) g.create();
+                g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+                int cx = getWidth() / 2, cy = getHeight() / 2, r = 5;
+                g2.setColor(getModel().isRollover() ? Color.WHITE : new Color(255, 255, 255, 160));
+                g2.setStroke(new BasicStroke(2f, BasicStroke.CAP_ROUND, BasicStroke.JOIN_ROUND));
+                g2.drawLine(cx - r, cy - r, cx + r, cy + r);
+                g2.drawLine(cx + r, cy - r, cx - r, cy + r);
+                g2.dispose();
+            }
+            @Override public boolean isOpaque() { return false; }
+        };
+        x.setContentAreaFilled(false);
+        x.setBorderPainted(false);
+        x.setFocusPainted(false);
+        x.setRolloverEnabled(true);
+        x.setPreferredSize(new Dimension(32, 32));
         x.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
+        x.getModel().addChangeListener(e -> x.repaint());
         x.addActionListener(e -> dlg.dispose());
-        header.add(t, BorderLayout.WEST); header.add(x, BorderLayout.EAST);
+
+        final int[] drag = {0, 0};
+        header.addMouseListener(new MouseAdapter() {
+            @Override public void mousePressed(MouseEvent e) { drag[0] = e.getX(); drag[1] = e.getY(); }
+        });
+        header.addMouseMotionListener(new MouseMotionAdapter() {
+            @Override public void mouseDragged(MouseEvent e) {
+                Point p = dlg.getLocation();
+                dlg.setLocation(p.x + e.getX() - drag[0], p.y + e.getY() - drag[1]);
+            }
+        });
+
+        JPanel xWrap = new JPanel(new FlowLayout(FlowLayout.CENTER, 6, 4));
+        xWrap.setOpaque(false);
+        xWrap.add(x);
+        header.add(t,     BorderLayout.WEST);
+        header.add(xWrap, BorderLayout.EAST);
         dlg.add(header, BorderLayout.NORTH);
         return dlg;
     }
@@ -1038,14 +1112,65 @@ public class InventoryPanel extends JPanel implements LanguageListener {
         return p;
     }
 
+    private static JPanel makeStepper(JTextField field) {
+        JPanel wrap = new JPanel(new BorderLayout()) {
+            @Override protected void paintComponent(Graphics g) {
+                Graphics2D g2 = (Graphics2D) g.create();
+                g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+                g2.setColor(SURFACE);
+                g2.fillRoundRect(0, 0, getWidth(), getHeight(), 8, 8);
+                g2.setColor(BORDER);
+                g2.drawRoundRect(0, 0, getWidth()-1, getHeight()-1, 8, 8);
+                g2.dispose();
+            }
+            @Override public boolean isOpaque() { return false; }
+        };
+        JButton minus = stepBtn("−");
+        JButton plus  = stepBtn("+");
+        minus.addActionListener(e -> {
+            try { int v = Integer.parseInt(field.getText().trim()); if (v > 0) field.setText(String.valueOf(v-1)); } catch (Exception ignored) {}
+        });
+        plus.addActionListener(e -> {
+            try { int v = Integer.parseInt(field.getText().trim()); field.setText(String.valueOf(v+1)); } catch (Exception ignored) {}
+        });
+        wrap.add(minus, BorderLayout.WEST);
+        wrap.add(field, BorderLayout.CENTER);
+        wrap.add(plus,  BorderLayout.EAST);
+        return wrap;
+    }
+
+    private static JButton stepBtn(String sym) {
+        JButton b = new JButton() {
+            @Override protected void paintComponent(Graphics g) {
+                Graphics2D g2 = (Graphics2D) g.create();
+                g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+                g2.setColor(getModel().isRollover() || getModel().isPressed() ? STEP_HOVER : SURFACE);
+                g2.fillRect(0, 0, getWidth(), getHeight());
+                g2.setFont(getFont());
+                g2.setColor(MUTED);
+                FontMetrics fm = g2.getFontMetrics();
+                g2.drawString(sym, (getWidth()-fm.stringWidth(sym))/2, (getHeight()+fm.getAscent()-fm.getDescent())/2);
+                g2.dispose();
+            }
+            @Override public boolean isOpaque() { return false; }
+        };
+        b.setFont(new Font("Dialog", Font.BOLD, 18));
+        b.setPreferredSize(new Dimension(36, 0));
+        b.setContentAreaFilled(false);
+        b.setBorderPainted(false);
+        b.setFocusPainted(false);
+        b.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
+        return b;
+    }
+
     private JTextField styledField(String val) {
         JTextField f = new JTextField(val) {
             @Override protected void paintComponent(Graphics g) {
                 Graphics2D g2 = (Graphics2D) g.create();
                 g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
-                g2.setColor(new Color(0xF8FAFC));
+                g2.setColor(SURFACE);
                 g2.fillRoundRect(0, 0, getWidth(), getHeight(), 8, 8);
-                g2.setColor(new Color(0xE2E8F0));
+                g2.setColor(BORDER);
                 g2.drawRoundRect(0, 0, getWidth()-1, getHeight()-1, 8, 8);
                 g2.dispose();
                 super.paintComponent(g);
@@ -1076,9 +1201,20 @@ public class InventoryPanel extends JPanel implements LanguageListener {
 
     // ── Button helpers ────────────────────────────────────────────────────────
     private JButton navBtn(String label, Color bg, Color fg) {
-        JButton b = new JButton(label);
+        JButton b = new JButton(label) {
+            @Override protected void paintComponent(Graphics g) {
+                Graphics2D g2 = (Graphics2D) g.create();
+                g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+                g2.setColor(getModel().isPressed() ? getBackground().darker() : getBackground());
+                g2.fillRoundRect(0, 0, getWidth(), getHeight(), 10, 10);
+                g2.dispose();
+                super.paintComponent(g);
+            }
+            @Override public boolean isOpaque() { return false; }
+        };
         b.setFont(new Font("Dialog", Font.BOLD, 13));
         b.setBackground(bg); b.setForeground(fg);
+        b.setContentAreaFilled(false);
         b.setBorderPainted(false); b.setFocusPainted(false);
         b.setBorder(new EmptyBorder(9, 18, 9, 18));
         b.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
@@ -1086,12 +1222,24 @@ public class InventoryPanel extends JPanel implements LanguageListener {
     }
 
     private JButton ghostBtn(String label) {
-        JButton b = new JButton(label);
+        JButton b = new JButton(label) {
+            @Override protected void paintComponent(Graphics g) {
+                Graphics2D g2 = (Graphics2D) g.create();
+                g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+                g2.setColor(getModel().isPressed() ? new Color(0xF1F5F9) : Color.WHITE);
+                g2.fillRoundRect(0, 0, getWidth(), getHeight(), 10, 10);
+                g2.setColor(new Color(0xE2E8F0));
+                g2.drawRoundRect(0, 0, getWidth() - 1, getHeight() - 1, 10, 10);
+                g2.dispose();
+                super.paintComponent(g);
+            }
+            @Override public boolean isOpaque() { return false; }
+        };
         b.setFont(new Font("Dialog", Font.PLAIN, 13));
         b.setBackground(Color.WHITE); b.setForeground(TXT);
-        b.setBorder(BorderFactory.createCompoundBorder(
-            BorderFactory.createLineBorder(new Color(0xE2E8F0)),
-            new EmptyBorder(8, 16, 8, 16)));
+        b.setContentAreaFilled(false);
+        b.setBorderPainted(false);
+        b.setBorder(new EmptyBorder(8, 16, 8, 16));
         b.setFocusPainted(false);
         b.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
         return b;
@@ -1109,7 +1257,7 @@ public class InventoryPanel extends JPanel implements LanguageListener {
             }
             @Override public boolean isOpaque() { return false; }
         };
-        b.setBackground(active ? ACCENT : PILL_BG);
+        b.setBackground(active ? ACCENT : BORDER);
         b.setForeground(active ? Color.WHITE : new Color(0x475569));
         b.setFont(new Font("Dialog", Font.BOLD, 13));
         b.setBorderPainted(false); b.setFocusPainted(false); b.setContentAreaFilled(false);
@@ -1119,13 +1267,23 @@ public class InventoryPanel extends JPanel implements LanguageListener {
     }
 
     private JButton tinyBtn(String label, Color fg) {
-        JButton b = new JButton(label);
+        JButton b = new JButton(label) {
+            @Override protected void paintComponent(Graphics g) {
+                Graphics2D g2 = (Graphics2D) g.create();
+                g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+                g2.setColor(getBackground());
+                g2.fillRoundRect(0, 0, getWidth(), getHeight(), 6, 6);
+                g2.dispose();
+                super.paintComponent(g);
+            }
+            @Override public boolean isOpaque() { return false; }
+        };
         b.setFont(new Font("Dialog", Font.PLAIN, 11));
         b.setForeground(fg);
-        b.setBackground(new Color(fg.getRed(), fg.getGreen(), fg.getBlue(), 18));
+        b.setBackground(new Color(fg.getRed(), fg.getGreen(), fg.getBlue(), 24));
         b.setBorderPainted(false); b.setFocusPainted(false); b.setContentAreaFilled(false);
         b.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
-        b.setBorder(new EmptyBorder(4, 8, 4, 8));
+        b.setBorder(new EmptyBorder(4, 10, 4, 10));
         return b;
     }
 

@@ -15,9 +15,9 @@ import java.net.URL;
 public class LoginFrame extends JFrame implements LanguageListener {
 
     // ── Colors ────────────────────────────────────────────────────────────────
-    private static final Color BRAND    = new Color(0x9b2a2a);
-    private static final Color BRAND_DK = new Color(0x7a1f1f);
-    private static final Color GRAD_TOP = new Color(0xa83333);
+    private static final Color BRAND    = AppColors.ACCENT;
+    private static final Color BRAND_DK = AppColors.ACCENT_DK;
+    private static final Color GRAD_TOP = AppColors.ACCENT_LT;
     private static final Color INK      = new Color(0x1a1a1a);
     private static final Color INK_2    = new Color(0x4a4a4a);
     private static final Color MUTED    = new Color(0x9a9a9a);
@@ -182,12 +182,50 @@ public class LoginFrame extends JFrame implements LanguageListener {
     }
 
     private JPanel buildTopBar() {
-        JPanel bar = new JPanel(new FlowLayout(FlowLayout.RIGHT, 12, 10));
+        JPanel bar = new JPanel(new BorderLayout());
         bar.setOpaque(false);
-        bar.add(winBtn("−", e -> setState(Frame.ICONIFIED)));
-        bar.add(winBtn("×", e -> dispatchEvent(
+
+        // Language toggle — left side
+        JPanel langRow = new JPanel(new FlowLayout(FlowLayout.LEFT, 8, 8));
+        langRow.setOpaque(false);
+        langRow.add(langBtn("MN"));
+        langRow.add(langBtn("EN"));
+        bar.add(langRow, BorderLayout.WEST);
+
+        // Window controls — right side
+        JPanel winRow = new JPanel(new FlowLayout(FlowLayout.RIGHT, 12, 10));
+        winRow.setOpaque(false);
+        winRow.add(winBtn("−", e -> setState(Frame.ICONIFIED)));
+        winRow.add(winBtn("×", e -> dispatchEvent(
                 new java.awt.event.WindowEvent(this, java.awt.event.WindowEvent.WINDOW_CLOSING))));
+        bar.add(winRow, BorderLayout.EAST);
         return bar;
+    }
+
+    private JButton langBtn(String code) {
+        JButton b = new JButton(code) {
+            @Override protected void paintComponent(Graphics g) {
+                Graphics2D g2 = (Graphics2D) g.create();
+                g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+                boolean on = code.toLowerCase().equals(I18n.getLocale().getLanguage());
+                g2.setColor(on ? new Color(255, 255, 255, 55) : new Color(255, 255, 255, 15));
+                g2.fillRoundRect(0, 0, getWidth(), getHeight(), 6, 6);
+                g2.dispose();
+                super.paintComponent(g);
+            }
+        };
+        b.setFont(new Font("Dialog", Font.BOLD, 11));
+        b.setForeground(Color.WHITE);
+        b.setContentAreaFilled(false);
+        b.setBorderPainted(false);
+        b.setFocusPainted(false);
+        b.setBorder(new EmptyBorder(3, 10, 3, 10));
+        b.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
+        b.addActionListener(e -> {
+            I18n.setLocale(code.toLowerCase()); // internally saves settings
+            if (b.getParent() != null) b.getParent().repaint();
+        });
+        return b;
     }
 
     private JButton winBtn(String label, java.awt.event.ActionListener action) {

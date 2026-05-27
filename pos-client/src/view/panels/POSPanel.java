@@ -1,5 +1,7 @@
 package view.panels;
 
+import static view.AppColors.*;
+
 import i18n.I18n;
 import i18n.LanguageListener;
 import model.CartItem;
@@ -28,13 +30,7 @@ public class POSPanel extends JPanel implements LanguageListener {
 
     @FunctionalInterface
     public interface PaymentHandler {
-        void pay(List<CartItem> items, int paymentMethodId, BigDecimal total, Runnable onSuccess);
-    }
-
-    @FunctionalInterface
-    public interface SplitPaymentHandler {
-        void pay(List<CartItem> items, int method1Id, BigDecimal amount1,
-                 int method2Id, BigDecimal amount2, BigDecimal total, Runnable onSuccess);
+        void pay(List<CartItem> items, List<Map<String, Object>> payments, BigDecimal total, Runnable onSuccess);
     }
 
     @FunctionalInterface
@@ -46,22 +42,40 @@ public class POSPanel extends JPanel implements LanguageListener {
     private static final ImageIcon IC_CAMERA = view.MainFrame.assetSq("/assets/icons/camera.png", 28);
     private static final ImageIcon IC_SEARCH = view.MainFrame.assetSq("/assets/icons/search.png", 22);
 
-    private static final Color  ACCENT  = new Color(0x7a1a1a);
-    private static final Color  BG      = new Color(0xF0F2F5);
-    private static final Color  TXT     = new Color(0x1E293B);
-    private static final Color  MUTED   = new Color(0x64748B);
-    private static final Color  PILL_BG = new Color(0xE2E8F0);
+    // Paint-path Color constants — allocated once, reused on every repaint
+    private static final Color SEARCH_BORDER  = new Color(0xE2E8F0);
+    private static final Color CARD_SHADOW_C  = new Color(0, 0, 0, 10);
+    private static final Color IMG_BG_C       = new Color(0xF1F5F9);
+    private static final Color QTY_BTN_C      = new Color(0xF1F5F9);
+    private static final Color CAT_FG         = new Color(0x475569);
+    private static final Color HOVER_CARD_BG  = new Color(0xFFF5F5);
+
+    // Font constants — allocated once, shared across all product cards and cart rows
+    private static final Font FONT_TITLE  = new Font("Dialog", Font.BOLD,  20);
+    private static final Font FONT_BTN    = new Font("Dialog", Font.BOLD,  14);
+    private static final Font FONT_BODY   = new Font("Dialog", Font.PLAIN, 14);
+    private static final Font FONT_SM_B   = new Font("Dialog", Font.BOLD,  13);
+    private static final Font FONT_SM_R   = new Font("Dialog", Font.PLAIN, 13);
+    private static final Font FONT_XS_B   = new Font("Dialog", Font.BOLD,  11);
+    private static final Font FONT_XS_R   = new Font("Dialog", Font.PLAIN, 11);
+
     private static final NumberFormat       MNT;
     private static final DateTimeFormatter  CLK = DateTimeFormatter.ofPattern("HH:mm:ss");
 
     static { MNT = NumberFormat.getNumberInstance(new Locale("mn", "MN")); }
 
-    private final User                user;
-    private       PaymentHandler      paymentHandler;
-    private       SplitPaymentHandler splitPaymentHandler;
-    private       ImageLoader         imageLoader;
+    private final User                        user;
+    private       PaymentHandler              paymentHandler;
+    private       ImageLoader                 imageLoader;
+    private       List<Map<String, Object>>   paymentMethods = new ArrayList<>();
+    private final PaymentDialogs              paymentDialogs;
 
-    private final Map<Integer, Image> imageCache = new HashMap<>();
+    private final Map<Integer, Image>  imageCache = new HashMap<>();
+    // Product card cache — rebuilt only when product list changes, not on every filter
+    private final Map<Integer, JPanel> cardCache  = new HashMap<>();
+    // Cart row label caches — updated in-place on qty change instead of full rebuild
+    private final java.util.IdentityHashMap<CartItem, JLabel> cartQtyLbls = new java.util.IdentityHashMap<>();
+    private final java.util.IdentityHashMap<CartItem, JLabel> cartSubLbls = new java.util.IdentityHashMap<>();
 
     private final List<Product>        allProducts = new ArrayList<>();
     private final List<CartItem>       cart        = new ArrayList<>();
@@ -69,11 +83,13 @@ public class POSPanel extends JPanel implements LanguageListener {
     private int    selectedCategoryId = -1;
     private String searchQuery        = "";
     private String searchPlaceholder  = I18n.t("pos.search");
+    private String barcodePlaceholder = I18n.t("pos.barcode");
 
     // UI refs updated on language change
     private JLabel     clockLabel;
     private JLabel     topBarTitle;
     private JTextField searchField;
+    private JTextField barcodeField;
     private JPanel     categoryBar;
     private JPanel     productGrid;
     private JPanel     cartItemsPanel;
@@ -96,7 +112,8 @@ public class POSPanel extends JPanel implements LanguageListener {
     private javax.swing.Timer toastTimer;
 
     public POSPanel(User user) {
-        this.user = user;
+        this.user   = user;
+        paymentDialogs = new PaymentDialogs(this, MNT);
         setLayout(new BorderLayout());
         setBackground(BG);
         add(buildLeft(), BorderLayout.CENTER);
@@ -110,6 +127,7 @@ public class POSPanel extends JPanel implements LanguageListener {
     public void setProducts(List<Product> products) {
         allProducts.clear();
         allProducts.addAll(products);
+        cardCache.clear();
         refreshGrid();
     }
 
@@ -121,9 +139,15 @@ public class POSPanel extends JPanel implements LanguageListener {
         categoryBar.repaint();
     }
 
-    public void setPaymentHandler(PaymentHandler handler)           { this.paymentHandler      = handler; }
-    public void setSplitPaymentHandler(SplitPaymentHandler handler) { this.splitPaymentHandler = handler; }
-    public void setImageLoader(ImageLoader loader)                  { this.imageLoader         = loader; }
+    public void setPaymentHandler(PaymentHandler handler) {
+        this.paymentHandler = handler;
+        paymentDialogs.setPaymentHandler(handler);
+    }
+    public void setImageLoader(ImageLoader loader) { this.imageLoader = loader; }
+    public void setPaymentMethods(List<Map<String, Object>> methods) {
+        this.paymentMethods = methods != null ? methods : new ArrayList<>();
+        paymentDialogs.setPaymentMethods(this.paymentMethods);
+    }
 
     public void showError(String msg) {
         JOptionPane.showMessageDialog(this, msg, I18n.t("common.error"), JOptionPane.ERROR_MESSAGE);
@@ -137,6 +161,11 @@ public class POSPanel extends JPanel implements LanguageListener {
             searchField.setText(searchPlaceholder);
             searchField.setForeground(new Color(0x94A3B8));
             searchQuery = "";
+        }
+        barcodePlaceholder = I18n.t("pos.barcode");
+        if (barcodePlaceholder.equals(barcodeField.getText()) || barcodeField.getText().isEmpty()) {
+            barcodeField.setText(barcodePlaceholder);
+            barcodeField.setForeground(new Color(0x94A3B8));
         }
         cartTitleLabel.setText(I18n.t("pos.cart"));
         clearBtn.setText(I18n.t("pos.clear"));
@@ -172,12 +201,12 @@ public class POSPanel extends JPanel implements LanguageListener {
         bar.setBorder(new EmptyBorder(14, 20, 14, 20));
 
         topBarTitle = new JLabel(I18n.t("pos.title"));
-        topBarTitle.setFont(new Font("Dialog", Font.BOLD, 20));
+        topBarTitle.setFont(FONT_TITLE);
         topBarTitle.setForeground(TXT);
         bar.add(topBarTitle, BorderLayout.WEST);
 
         clockLabel = new JLabel();
-        clockLabel.setFont(new Font("Dialog", Font.PLAIN, 14));
+        clockLabel.setFont(FONT_BODY);
         clockLabel.setForeground(MUTED);
         bar.add(clockLabel, BorderLayout.EAST);
         return bar;
@@ -231,7 +260,7 @@ public class POSPanel extends JPanel implements LanguageListener {
         area.add(scroll, BorderLayout.CENTER);
 
         toastLabel = new JLabel("", SwingConstants.CENTER);
-        toastLabel.setFont(new Font("Dialog", Font.BOLD, 13));
+        toastLabel.setFont(FONT_SM_B);
         toastLabel.setForeground(Color.WHITE);
         toastLabel.setOpaque(true);
         toastLabel.setBackground(new Color(0xDC2626));
@@ -248,7 +277,7 @@ public class POSPanel extends JPanel implements LanguageListener {
                 g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
                 g2.setColor(Color.WHITE);
                 g2.fillRoundRect(0, 0, getWidth(), getHeight(), 10, 10);
-                g2.setColor(new Color(0xE2E8F0));
+                g2.setColor(SEARCH_BORDER);
                 g2.setStroke(new BasicStroke(1));
                 g2.drawRoundRect(0, 0, getWidth() - 1, getHeight() - 1, 10, 10);
                 g2.dispose();
@@ -265,7 +294,7 @@ public class POSPanel extends JPanel implements LanguageListener {
 
         searchField = new JTextField(searchPlaceholder);
         searchField.setForeground(new Color(0x94A3B8));
-        searchField.setFont(new Font("Dialog", Font.PLAIN, 14));
+        searchField.setFont(FONT_BODY);
         searchField.setOpaque(false);
         searchField.setBorder(null);
         searchField.addFocusListener(new FocusAdapter() {
@@ -322,9 +351,9 @@ public class POSPanel extends JPanel implements LanguageListener {
         };
         btn.putClientProperty("catId", catId);
         boolean active = catId == selectedCategoryId;
-        btn.setBackground(active ? ACCENT : PILL_BG);
-        btn.setForeground(active ? Color.WHITE : new Color(0x475569));
-        btn.setFont(new Font("Dialog", Font.BOLD, 14));
+        btn.setBackground(active ? ACCENT : BORDER);
+        btn.setForeground(active ? Color.WHITE : CAT_FG);
+        btn.setFont(FONT_BTN);
         btn.setBorderPainted(false);
         btn.setFocusPainted(false);
         btn.setContentAreaFilled(false);
@@ -337,7 +366,7 @@ public class POSPanel extends JPanel implements LanguageListener {
                 if (c instanceof JButton b) {
                     Object id = b.getClientProperty("catId");
                     boolean sel = id instanceof Integer i && i == catId;
-                    b.setBackground(sel ? ACCENT : PILL_BG);
+                    b.setBackground(sel ? ACCENT : BORDER);
                     b.setForeground(sel ? Color.WHITE : new Color(0x475569));
                     b.repaint();
                 }
@@ -354,7 +383,7 @@ public class POSPanel extends JPanel implements LanguageListener {
             if (!p.isActive()) continue;
             if (selectedCategoryId != -1 && p.getCategoryId() != selectedCategoryId) continue;
             if (!q.isEmpty() && !p.getName().toLowerCase().contains(q)) continue;
-            productGrid.add(productCard(p));
+            productGrid.add(cardCache.computeIfAbsent(p.getId(), id -> productCard(p)));
         }
         productGrid.revalidate();
         productGrid.repaint();
@@ -369,7 +398,7 @@ public class POSPanel extends JPanel implements LanguageListener {
             @Override protected void paintComponent(Graphics g) {
                 Graphics2D g2 = (Graphics2D) g.create();
                 g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
-                g2.setColor(new Color(0, 0, 0, 10));
+                g2.setColor(CARD_SHADOW_C);
                 g2.fillRoundRect(2, 3, getWidth() - 2, getHeight() - 2, 14, 14);
                 g2.setColor(getBackground());
                 g2.fillRoundRect(0, 0, getWidth() - 2, getHeight() - 2, 14, 14);
@@ -384,7 +413,7 @@ public class POSPanel extends JPanel implements LanguageListener {
                 Graphics2D g2 = (Graphics2D) g.create();
                 g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING,  RenderingHints.VALUE_ANTIALIAS_ON);
                 g2.setRenderingHint(RenderingHints.KEY_INTERPOLATION, RenderingHints.VALUE_INTERPOLATION_BICUBIC);
-                g2.setColor(new Color(0xF1F5F9));
+                g2.setColor(IMG_BG_C);
                 g2.fillRoundRect(0, 0, getWidth(), getHeight() + 14, 14, 14);
                 Image img = imageCache.get(p.getId());
                 if (img != null) {
@@ -422,16 +451,16 @@ public class POSPanel extends JPanel implements LanguageListener {
         info.setBorder(new EmptyBorder(8, 10, 10, 10));
 
         JLabel name = new JLabel("<html><body style='width:" + (CARD_W - 20) + "px'>" + p.getName() + "</body></html>");
-        name.setFont(new Font("Dialog", Font.PLAIN, 13));
+        name.setFont(FONT_SM_R);
         name.setForeground(TXT);
 
         JPanel bottom = new JPanel(new BorderLayout());
         bottom.setOpaque(false);
         JLabel price = new JLabel("₮" + MNT.format(p.getPrice()));
-        price.setFont(new Font("Dialog", Font.BOLD, 13));
+        price.setFont(FONT_SM_B);
         price.setForeground(ACCENT);
         JLabel stock = new JLabel(p.getStockQuantity() + (p.getUnit() != null ? p.getUnit() : "ш"));
-        stock.setFont(new Font("Dialog", Font.PLAIN, 11));
+        stock.setFont(FONT_XS_R);
         stock.setForeground(MUTED);
         stock.setHorizontalAlignment(SwingConstants.RIGHT);
         bottom.add(price, BorderLayout.WEST);
@@ -446,7 +475,7 @@ public class POSPanel extends JPanel implements LanguageListener {
 
         MouseAdapter ma = new MouseAdapter() {
             @Override public void mouseClicked(MouseEvent e) { addToCart(p); }
-            @Override public void mouseEntered(MouseEvent e) { card.setBackground(new Color(0xFFF5F5)); card.repaint(); }
+            @Override public void mouseEntered(MouseEvent e) { card.setBackground(HOVER_CARD_BG); card.repaint(); }
             @Override public void mouseExited(MouseEvent e)  { card.setBackground(Color.WHITE);         card.repaint(); }
         };
         for (Component c : new Component[]{card, imgArea, info, name, bottom, price, stock})
@@ -469,10 +498,74 @@ public class POSPanel extends JPanel implements LanguageListener {
         panel.setBackground(Color.WHITE);
         panel.setPreferredSize(new Dimension(320, 0));
         panel.setBorder(BorderFactory.createMatteBorder(0, 1, 0, 0, new Color(0xE2E8F0)));
-        panel.add(buildCartHeader(), BorderLayout.NORTH);
+
+        JPanel north = new JPanel(new BorderLayout());
+        north.setOpaque(false);
+        north.add(buildCartHeader(),  BorderLayout.NORTH);
+        north.add(buildBarcodeRow(), BorderLayout.SOUTH);
+
+        panel.add(north,             BorderLayout.NORTH);
         panel.add(buildCartCenter(), BorderLayout.CENTER);
         panel.add(buildCartFooter(), BorderLayout.SOUTH);
         return panel;
+    }
+
+    private JPanel buildBarcodeRow() {
+        JPanel wrap = new JPanel(new BorderLayout());
+        wrap.setBackground(Color.WHITE);
+        wrap.setBorder(BorderFactory.createCompoundBorder(
+                BorderFactory.createMatteBorder(0, 0, 1, 0, new Color(0xE2E8F0)),
+                new EmptyBorder(8, 16, 8, 16)));
+
+        JPanel fieldWrap = new JPanel(new BorderLayout()) {
+            @Override protected void paintComponent(Graphics g) {
+                Graphics2D g2 = (Graphics2D) g.create();
+                g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+                g2.setColor(new Color(0xF8FAFC));
+                g2.fillRoundRect(0, 0, getWidth(), getHeight(), 8, 8);
+                g2.setColor(SEARCH_BORDER);
+                g2.drawRoundRect(0, 0, getWidth() - 1, getHeight() - 1, 8, 8);
+                g2.dispose();
+            }
+        };
+        fieldWrap.setOpaque(false);
+        fieldWrap.setBorder(new EmptyBorder(5, 10, 5, 10));
+
+        barcodeField = new JTextField(barcodePlaceholder);
+        barcodeField.setFont(FONT_SM_R);
+        barcodeField.setForeground(new Color(0x94A3B8));
+        barcodeField.setOpaque(false);
+        barcodeField.setBorder(null);
+        barcodeField.addFocusListener(new FocusAdapter() {
+            @Override public void focusGained(FocusEvent e) {
+                if (barcodePlaceholder.equals(barcodeField.getText())) {
+                    barcodeField.setText("");
+                    barcodeField.setForeground(TXT);
+                }
+            }
+            @Override public void focusLost(FocusEvent e) {
+                if (barcodeField.getText().isEmpty()) {
+                    barcodeField.setText(barcodePlaceholder);
+                    barcodeField.setForeground(new Color(0x94A3B8));
+                }
+            }
+        });
+        barcodeField.addKeyListener(new KeyAdapter() {
+            @Override public void keyPressed(KeyEvent e) {
+                if (e.getKeyCode() == KeyEvent.VK_ENTER) {
+                    String text = barcodeField.getText().trim();
+                    barcodeField.setText(barcodePlaceholder);
+                    barcodeField.setForeground(new Color(0x94A3B8));
+                    if (!text.isEmpty() && !text.equals(barcodePlaceholder)) {
+                        processBarcodeInput(text);
+                    }
+                }
+            }
+        });
+
+        fieldWrap.add(barcodeField, BorderLayout.CENTER);
+        wrap.add(fieldWrap, BorderLayout.CENTER);
+        return wrap;
     }
 
     private JPanel buildCartHeader() {
@@ -490,10 +583,21 @@ public class POSPanel extends JPanel implements LanguageListener {
         cashier.setFont(new Font("Dialog", Font.PLAIN, 12));
         cashier.setForeground(MUTED);
 
-        clearBtn = new JButton(I18n.t("pos.clear"));
+        clearBtn = new JButton(I18n.t("pos.clear")) {
+            @Override protected void paintComponent(Graphics g) {
+                Graphics2D g2 = (Graphics2D) g.create();
+                g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+                g2.setColor(getModel().isPressed() ? new Color(0xFECACA) : getBackground());
+                g2.fillRoundRect(0, 0, getWidth(), getHeight(), 8, 8);
+                g2.dispose();
+                super.paintComponent(g);
+            }
+            @Override public boolean isOpaque() { return false; }
+        };
         clearBtn.setFont(new Font("Dialog", Font.PLAIN, 12));
         clearBtn.setForeground(new Color(0xEF4444));
         clearBtn.setBackground(new Color(0xFEF2F2));
+        clearBtn.setContentAreaFilled(false);
         clearBtn.setBorderPainted(false);
         clearBtn.setFocusPainted(false);
         clearBtn.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
@@ -608,7 +712,7 @@ public class POSPanel extends JPanel implements LanguageListener {
             }
             @Override public boolean isOpaque() { return false; }
         };
-        payBtnSplit.setFont(new Font("Dialog", Font.BOLD, 13));
+        payBtnSplit.setFont(FONT_SM_B);
         payBtnSplit.setBackground(new Color(0xF1F5F9));
         payBtnSplit.setForeground(new Color(0x475569));
         payBtnSplit.setBorderPainted(false);
@@ -616,7 +720,7 @@ public class POSPanel extends JPanel implements LanguageListener {
         payBtnSplit.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
         payBtnSplit.addActionListener(e -> {
             if (cart.isEmpty()) { showError(I18n.t("pos.error.empty_cart")); return; }
-            showSplitDialog();
+            showPaymentDialog(0);
         });
 
         JPanel payArea = new JPanel();
@@ -647,7 +751,7 @@ public class POSPanel extends JPanel implements LanguageListener {
             }
             @Override public boolean isOpaque() { return false; }
         };
-        btn.setFont(new Font("Dialog", Font.BOLD, 13));
+        btn.setFont(FONT_SM_B);
         btn.setBackground(color);
         btn.setForeground(Color.WHITE);
         btn.setBorderPainted(false);
@@ -655,10 +759,13 @@ public class POSPanel extends JPanel implements LanguageListener {
         btn.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
         btn.addActionListener(e -> {
             if (cart.isEmpty()) { showError(I18n.t("pos.error.empty_cart")); return; }
-            if (methodId == 1) showCashDialog();
-            else showDigitalDialog(btn.getText(), methodId);
+            showPaymentDialog(methodId);
         });
         return btn;
+    }
+
+    private void showPaymentDialog(int methodId) {
+        paymentDialogs.showPaymentDialog(methodId, cartTotal(), new ArrayList<>(cart), this::clearCart);
     }
 
     // ── Cart logic ────────────────────────────────────────────────────────────
@@ -717,7 +824,7 @@ public class POSPanel extends JPanel implements LanguageListener {
             }
             @Override public boolean isOpaque() { return false; }
         };
-        btn.setFont(new Font("Dialog", Font.BOLD, 11));
+        btn.setFont(FONT_XS_B);
         btn.setBackground(bg);
         btn.setForeground(fg);
         btn.setBorderPainted(false);
@@ -729,19 +836,31 @@ public class POSPanel extends JPanel implements LanguageListener {
     }
 
     private void refreshCart() {
-        cartItemsPanel.removeAll();
-        for (int i = 0; i < cart.size(); i++) {
-            cartItemsPanel.add(cartItemRow(cart.get(i)));
-            if (i < cart.size() - 1) {
-                JSeparator sep = new JSeparator();
-                sep.setForeground(new Color(0xF1F5F9));
-                sep.setMaximumSize(new Dimension(Integer.MAX_VALUE, 1));
-                cartItemsPanel.add(sep);
+        boolean sameItems = cart.size() == cartQtyLbls.size() && cartQtyLbls.keySet().containsAll(cart);
+        if (sameItems) {
+            // Fast path: only update qty and subtotal labels, no layout rebuild
+            for (CartItem ci : cart) {
+                cartQtyLbls.get(ci).setText(String.valueOf(ci.getQuantity()));
+                cartSubLbls.get(ci).setText("₮" + MNT.format(ci.getSubtotal()));
             }
+            cartItemsPanel.repaint();
+        } else {
+            // Layout changed (item added or removed) — rebuild rows and refresh caches
+            cartQtyLbls.clear();
+            cartSubLbls.clear();
+            cartItemsPanel.removeAll();
+            for (int i = 0; i < cart.size(); i++) {
+                cartItemsPanel.add(cartItemRow(cart.get(i)));
+                if (i < cart.size() - 1) {
+                    JSeparator sep = new JSeparator();
+                    sep.setForeground(SEARCH_BORDER);
+                    sep.setMaximumSize(new Dimension(Integer.MAX_VALUE, 1));
+                    cartItemsPanel.add(sep);
+                }
+            }
+            cartItemsPanel.revalidate();
+            cartItemsPanel.repaint();
         }
-        cartItemsPanel.revalidate();
-        cartItemsPanel.repaint();
-
         totalLabel.setText("₮" + MNT.format(cartTotal()));
         cartCardLayout.show(cartCardPanel, cart.isEmpty() ? "EMPTY" : "ITEMS");
     }
@@ -759,18 +878,18 @@ public class POSPanel extends JPanel implements LanguageListener {
         String rawName     = ci.getProduct().getName();
         String displayName = rawName.length() > 22 ? rawName.substring(0, 20) + "…" : rawName;
         JLabel nameLbl = new JLabel(displayName);
-        nameLbl.setFont(new Font("Dialog", Font.PLAIN, 13));
+        nameLbl.setFont(FONT_SM_R);
         nameLbl.setForeground(TXT);
         if (rawName.length() > 22) nameLbl.setToolTipText(rawName);
         JLabel unitLbl = new JLabel("₮" + MNT.format(ci.getProduct().getPrice()) + "/" + (ci.getProduct().getUnit() != null ? ci.getProduct().getUnit() : "ш"));
-        unitLbl.setFont(new Font("Dialog", Font.PLAIN, 11));
+        unitLbl.setFont(FONT_XS_R);
         unitLbl.setForeground(MUTED);
         info.add(nameLbl, BorderLayout.CENTER);
         info.add(unitLbl, BorderLayout.SOUTH);
 
         JButton minus = qtyBtn("−");
         JLabel  qLbl  = new JLabel(String.valueOf(ci.getQuantity()));
-        qLbl.setFont(new Font("Dialog", Font.BOLD, 13));
+        qLbl.setFont(FONT_SM_B);
         qLbl.setPreferredSize(new Dimension(24, 24));
         qLbl.setMaximumSize(new Dimension(24, 24));
         qLbl.setHorizontalAlignment(SwingConstants.CENTER);
@@ -783,11 +902,15 @@ public class POSPanel extends JPanel implements LanguageListener {
         plus.addActionListener(e -> { ci.increment(); refreshCart(); });
 
         JLabel sub = new JLabel("₮" + MNT.format(ci.getSubtotal()));
-        sub.setFont(new Font("Dialog", Font.BOLD, 13));
+        sub.setFont(FONT_SM_B);
         sub.setForeground(ACCENT);
         sub.setPreferredSize(new Dimension(70, 0));
         sub.setMaximumSize(new Dimension(70, Integer.MAX_VALUE));
         sub.setHorizontalAlignment(SwingConstants.RIGHT);
+
+        // Cache the mutable labels so refreshCart fast-path can update them without rebuild
+        cartQtyLbls.put(ci, qLbl);
+        cartSubLbls.put(ci, sub);
 
         row.add(info);
         row.add(Box.createHorizontalGlue());
@@ -806,285 +929,33 @@ public class POSPanel extends JPanel implements LanguageListener {
             @Override protected void paintComponent(Graphics g) {
                 Graphics2D g2 = (Graphics2D) g.create();
                 g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
-                g2.setColor(new Color(0xF1F5F9));
-                g2.fillRoundRect(0, 0, getWidth(), getHeight(), 8, 8);
+                Color bg = getModel().isPressed()  ? new Color(0xCBD5E1)
+                         : getModel().isRollover() ? new Color(0xE2E8F0)
+                         : QTY_BTN_C;
+                int d = Math.min(getWidth(), getHeight()) - 2;
+                g2.setColor(bg);
+                g2.fillOval((getWidth() - d) / 2, (getHeight() - d) / 2, d, d);
+                g2.setFont(getFont());
+                g2.setColor(getForeground());
+                FontMetrics fm = g2.getFontMetrics();
+                int tx = (getWidth()  - fm.stringWidth(label)) / 2;
+                int ty = (getHeight() - fm.getHeight()) / 2 + fm.getAscent();
+                g2.drawString(label, tx, ty);
                 g2.dispose();
-                super.paintComponent(g);
             }
             @Override public boolean isOpaque() { return false; }
         };
-        btn.setFont(new Font("Dialog", Font.BOLD, 14));
+        btn.setFont(new Font("Dialog", Font.PLAIN, 14));
         btn.setForeground(TXT);
         btn.setBorderPainted(false);
         btn.setFocusPainted(false);
         btn.setContentAreaFilled(false);
+        btn.setRolloverEnabled(true);
+        btn.getModel().addChangeListener(e -> btn.repaint());
         btn.setPreferredSize(new Dimension(26, 26));
         btn.setMaximumSize(new Dimension(26, 26));
         btn.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
         return btn;
-    }
-
-    // ── Payment dialogs ───────────────────────────────────────────────────────
-
-    private void showCashDialog() {
-        BigDecimal total = cartTotal();
-        JDialog dlg = makeDialog(I18n.t("pos.cash.dialog.title"));
-
-        JPanel body = new JPanel();
-        body.setLayout(new BoxLayout(body, BoxLayout.Y_AXIS));
-        body.setBackground(Color.WHITE);
-        body.setBorder(new EmptyBorder(24, 28, 28, 28));
-
-        body.add(dialogLabel(I18n.t("pos.total"), 13, MUTED));
-        JLabel totalAmt = new JLabel("₮" + MNT.format(total));
-        totalAmt.setFont(new Font("Dialog", Font.BOLD, 28));
-        totalAmt.setForeground(TXT);
-        totalAmt.setAlignmentX(LEFT_ALIGNMENT);
-        body.add(totalAmt);
-        body.add(Box.createVerticalStrut(20));
-
-        body.add(dialogLabel(I18n.t("pos.cash.given"), 13, MUTED));
-        body.add(Box.createVerticalStrut(6));
-        JTextField cashInput = new JTextField();
-        cashInput.setFont(new Font("Dialog", Font.BOLD, 18));
-        cashInput.setForeground(TXT);
-        cashInput.setBorder(BorderFactory.createCompoundBorder(
-                BorderFactory.createLineBorder(new Color(0xE2E8F0)),
-                new EmptyBorder(8, 12, 8, 12)));
-        cashInput.setMaximumSize(new Dimension(Integer.MAX_VALUE, 48));
-        cashInput.setAlignmentX(LEFT_ALIGNMENT);
-        body.add(cashInput);
-        body.add(Box.createVerticalStrut(16));
-
-        body.add(dialogLabel(I18n.t("pos.cash.change"), 13, MUTED));
-        JLabel changeAmt = new JLabel("₮0");
-        changeAmt.setFont(new Font("Dialog", Font.BOLD, 22));
-        changeAmt.setForeground(new Color(0x16A34A));
-        changeAmt.setAlignmentX(LEFT_ALIGNMENT);
-        body.add(changeAmt);
-        body.add(Box.createVerticalStrut(24));
-
-        JButton confirm = dialogBtn(I18n.t("pos.confirm"), new Color(0x16A34A));
-        confirm.setEnabled(false);
-        body.add(confirm);
-
-        cashInput.getDocument().addDocumentListener(new DocumentListener() {
-            void update() {
-                try {
-                    BigDecimal cash   = new BigDecimal(cashInput.getText().replaceAll("[^0-9.]", ""));
-                    BigDecimal change = cash.subtract(total);
-                    if (change.compareTo(BigDecimal.ZERO) >= 0) {
-                        changeAmt.setText("₮" + MNT.format(change));
-                        changeAmt.setForeground(new Color(0x16A34A));
-                        confirm.setEnabled(true);
-                    } else {
-                        changeAmt.setText(I18n.t("pos.cash.short"));
-                        changeAmt.setForeground(new Color(0xEF4444));
-                        confirm.setEnabled(false);
-                    }
-                } catch (Exception ex) {
-                    changeAmt.setText("₮0");
-                    changeAmt.setForeground(new Color(0x16A34A));
-                    confirm.setEnabled(false);
-                }
-            }
-            @Override public void insertUpdate(DocumentEvent e)  { update(); }
-            @Override public void removeUpdate(DocumentEvent e)  { update(); }
-            @Override public void changedUpdate(DocumentEvent e) { update(); }
-        });
-
-        confirm.addActionListener(e -> {
-            if (paymentHandler == null) return;
-            dlg.dispose();
-            paymentHandler.pay(new ArrayList<>(cart), 1, total, this::clearCart);
-        });
-
-        dlg.add(body);
-        dlg.pack();
-        dlg.setMinimumSize(new Dimension(340, dlg.getPreferredSize().height));
-        dlg.setLocationRelativeTo(this);
-        dlg.setVisible(true);
-    }
-
-    private void showDigitalDialog(String methodName, int methodId) {
-        BigDecimal total = cartTotal();
-        JDialog dlg = makeDialog(methodName);
-
-        JPanel body = new JPanel();
-        body.setLayout(new BoxLayout(body, BoxLayout.Y_AXIS));
-        body.setBackground(Color.WHITE);
-        body.setBorder(new EmptyBorder(28, 32, 32, 32));
-
-        JLabel title = new JLabel(methodName);
-        title.setFont(new Font("Dialog", Font.BOLD, 18));
-        title.setForeground(TXT);
-        title.setAlignmentX(LEFT_ALIGNMENT);
-        body.add(title);
-        body.add(Box.createVerticalStrut(8));
-
-        JLabel amt = new JLabel("₮" + MNT.format(total));
-        amt.setFont(new Font("Dialog", Font.BOLD, 30));
-        amt.setForeground(ACCENT);
-        amt.setAlignmentX(LEFT_ALIGNMENT);
-        body.add(amt);
-        body.add(Box.createVerticalStrut(28));
-
-        JButton confirm = dialogBtn(I18n.t("pos.confirm"), new Color(0x2563EB));
-        body.add(confirm);
-        body.add(Box.createVerticalStrut(8));
-
-        JButton cancel = dialogBtn(I18n.t("pos.cancel"), new Color(0xF1F5F9));
-        cancel.setForeground(MUTED);
-        cancel.addActionListener(e -> dlg.dispose());
-        body.add(cancel);
-
-        confirm.addActionListener(e -> {
-            if (paymentHandler == null) return;
-            dlg.dispose();
-            paymentHandler.pay(new ArrayList<>(cart), methodId, total, this::clearCart);
-        });
-
-        dlg.add(body);
-        dlg.pack();
-        dlg.setMinimumSize(new Dimension(320, dlg.getPreferredSize().height));
-        dlg.setLocationRelativeTo(this);
-        dlg.setVisible(true);
-    }
-
-    private JDialog makeDialog(String title) {
-        JDialog dlg = new JDialog(SwingUtilities.getWindowAncestor(this), title, Dialog.ModalityType.APPLICATION_MODAL);
-        dlg.setBackground(Color.WHITE);
-        dlg.setLayout(new BorderLayout());
-        return dlg;
-    }
-
-    private JLabel dialogLabel(String text, int size, Color color) {
-        JLabel lbl = new JLabel(text);
-        lbl.setFont(new Font("Dialog", Font.PLAIN, size));
-        lbl.setForeground(color);
-        lbl.setAlignmentX(LEFT_ALIGNMENT);
-        return lbl;
-    }
-
-    private JButton dialogBtn(String label, Color bg) {
-        JButton btn = new JButton(label);
-        btn.setFont(new Font("Dialog", Font.BOLD, 14));
-        btn.setBackground(bg);
-        btn.setForeground(Color.WHITE);
-        btn.setBorderPainted(false);
-        btn.setFocusPainted(false);
-        btn.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
-        btn.setMaximumSize(new Dimension(Integer.MAX_VALUE, 44));
-        btn.setAlignmentX(LEFT_ALIGNMENT);
-        return btn;
-    }
-
-    // ── Split payment dialog ──────────────────────────────────────────────────
-
-    private void showSplitDialog() {
-        BigDecimal total = cartTotal();
-        JDialog dlg = makeDialog(I18n.t("pos.payment.split"));
-
-        JPanel body = new JPanel();
-        body.setLayout(new BoxLayout(body, BoxLayout.Y_AXIS));
-        body.setBackground(Color.WHITE);
-        body.setBorder(new EmptyBorder(24, 28, 28, 28));
-
-        body.add(dialogLabel(I18n.t("pos.total"), 13, MUTED));
-        JLabel totalAmt = new JLabel("₮" + MNT.format(total));
-        totalAmt.setFont(new Font("Dialog", Font.BOLD, 28));
-        totalAmt.setForeground(TXT);
-        totalAmt.setAlignmentX(LEFT_ALIGNMENT);
-        body.add(totalAmt);
-        body.add(Box.createVerticalStrut(20));
-
-        body.add(dialogLabel(I18n.t("pos.cash.given"), 13, MUTED));
-        body.add(Box.createVerticalStrut(6));
-        JTextField cashInput = new JTextField();
-        cashInput.setFont(new Font("Dialog", Font.BOLD, 18));
-        cashInput.setForeground(TXT);
-        cashInput.setBorder(BorderFactory.createCompoundBorder(
-                BorderFactory.createLineBorder(new Color(0xE2E8F0)),
-                new EmptyBorder(8, 12, 8, 12)));
-        cashInput.setMaximumSize(new Dimension(Integer.MAX_VALUE, 48));
-        cashInput.setAlignmentX(LEFT_ALIGNMENT);
-        body.add(cashInput);
-        body.add(Box.createVerticalStrut(16));
-
-        body.add(dialogLabel(I18n.t("pos.split.second"), 13, MUTED));
-        body.add(Box.createVerticalStrut(6));
-        String[] methodNames = {I18n.t("pos.payment.card"), I18n.t("pos.payment.qpay"), I18n.t("pos.payment.monpay")};
-        int[]    methodIds   = {2, 3, 4};
-        JComboBox<String> methodCombo = new JComboBox<>(methodNames);
-        methodCombo.setFont(new Font("Dialog", Font.PLAIN, 14));
-        methodCombo.setMaximumSize(new Dimension(Integer.MAX_VALUE, 40));
-        methodCombo.setAlignmentX(LEFT_ALIGNMENT);
-        body.add(methodCombo);
-        body.add(Box.createVerticalStrut(12));
-
-        JLabel statusLabel = new JLabel(" ");
-        statusLabel.setFont(new Font("Dialog", Font.BOLD, 15));
-        statusLabel.setForeground(new Color(0x2563EB));
-        statusLabel.setAlignmentX(LEFT_ALIGNMENT);
-        body.add(statusLabel);
-        body.add(Box.createVerticalStrut(20));
-
-        JButton confirm = dialogBtn(I18n.t("pos.confirm"), ACCENT);
-        confirm.setEnabled(false);
-        body.add(confirm);
-        body.add(Box.createVerticalStrut(8));
-        JButton cancel = dialogBtn(I18n.t("pos.cancel"), new Color(0xF1F5F9));
-        cancel.setForeground(MUTED);
-        cancel.addActionListener(e -> dlg.dispose());
-        body.add(cancel);
-
-        cashInput.getDocument().addDocumentListener(new DocumentListener() {
-            void update() {
-                try {
-                    BigDecimal cash      = new BigDecimal(cashInput.getText().replaceAll("[^0-9.]", ""));
-                    BigDecimal remaining = total.subtract(cash);
-                    if (cash.compareTo(BigDecimal.ZERO) <= 0) {
-                        statusLabel.setText(" ");
-                        statusLabel.setForeground(new Color(0x2563EB));
-                        confirm.setEnabled(false);
-                    } else if (remaining.compareTo(BigDecimal.ZERO) > 0) {
-                        statusLabel.setText(I18n.t("pos.split.remaining") + ": ₮" + MNT.format(remaining));
-                        statusLabel.setForeground(new Color(0x2563EB));
-                        methodCombo.setEnabled(true);
-                        confirm.setEnabled(true);
-                    } else {
-                        BigDecimal change = cash.subtract(total);
-                        statusLabel.setText(I18n.t("pos.cash.change") + ": ₮" + MNT.format(change));
-                        statusLabel.setForeground(new Color(0x16A34A));
-                        methodCombo.setEnabled(false);
-                        confirm.setEnabled(true);
-                    }
-                } catch (Exception ex) {
-                    statusLabel.setText(" ");
-                    confirm.setEnabled(false);
-                }
-            }
-            @Override public void insertUpdate(DocumentEvent e)  { update(); }
-            @Override public void removeUpdate(DocumentEvent e)  { update(); }
-            @Override public void changedUpdate(DocumentEvent e) { update(); }
-        });
-
-        confirm.addActionListener(e -> {
-            if (splitPaymentHandler == null) return;
-            try {
-                BigDecimal cash      = new BigDecimal(cashInput.getText().replaceAll("[^0-9.]", ""));
-                BigDecimal remaining = total.subtract(cash).max(BigDecimal.ZERO);
-                int secondMethodId   = methodIds[methodCombo.getSelectedIndex()];
-                dlg.dispose();
-                splitPaymentHandler.pay(new ArrayList<>(cart), 1, cash, secondMethodId, remaining, total, this::clearCart);
-            } catch (Exception ignored) {}
-        });
-
-        dlg.add(body);
-        dlg.pack();
-        dlg.setMinimumSize(new Dimension(360, dlg.getPreferredSize().height));
-        dlg.setLocationRelativeTo(this);
-        dlg.setVisible(true);
     }
 
     // ── Barcode scanner ───────────────────────────────────────────────────────
@@ -1096,8 +967,11 @@ public class POSPanel extends JPanel implements LanguageListener {
         scannerDispatcher = event -> {
             if (!isShowing()) return false;
             if (event.getID() != KeyEvent.KEY_TYPED) return false;
+            // Only intercept when the main app window (JFrame) has focus — any dialog stops the scanner
+            Window activeWin = KeyboardFocusManager.getCurrentKeyboardFocusManager().getFocusedWindow();
+            if (!(activeWin instanceof JFrame)) return false;
             Component focused = KeyboardFocusManager.getCurrentKeyboardFocusManager().getFocusOwner();
-            if (focused == searchField) return false;
+            if (focused == searchField || focused == barcodeField) return false;
 
             char c = event.getKeyChar();
             if (c == '\n' || c == '\r') {
@@ -1126,7 +1000,7 @@ public class POSPanel extends JPanel implements LanguageListener {
                 return;
             }
         }
-        showBarcodeToast("Barcode not found: " + barcode);
+        showBarcodeToast(I18n.t("pos.barcode.not.found").replace("{0}", barcode));
     }
 
     private void showBarcodeToast(String msg) {

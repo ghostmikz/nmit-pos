@@ -9,9 +9,8 @@ public class CategoryDAO {
 
     public List<Category> findAll() throws SQLException {
         List<Category> list = new ArrayList<>();
-        String sql = "SELECT id, name, description FROM categories ORDER BY name";
-        try (Statement st = DatabaseConnection.getInstance().createStatement();
-             ResultSet rs = st.executeQuery(sql)) {
+        try (CallableStatement cs = DatabaseConnection.getInstance().prepareCall("CALL sp_get_categories()");
+             ResultSet rs = cs.executeQuery()) {
             while (rs.next()) {
                 Category c = new Category();
                 c.setId(rs.getInt("id"));
@@ -26,15 +25,13 @@ public class CategoryDAO {
     public Category add(String name) throws SQLException {
         try (CallableStatement cs = DatabaseConnection.getInstance().prepareCall("CALL sp_add_category(?)")) {
             cs.setString(1, name);
-            cs.execute();
-        }
-        try (Statement st = DatabaseConnection.getInstance().createStatement();
-             ResultSet rs = st.executeQuery("SELECT LAST_INSERT_ID()")) {
-            if (rs.next()) {
-                Category c = new Category();
-                c.setId(rs.getInt(1));
-                c.setName(name);
-                return c;
+            try (ResultSet rs = cs.executeQuery()) {
+                if (rs.next()) {
+                    Category c = new Category();
+                    c.setId(rs.getInt("category_id"));
+                    c.setName(rs.getString("name"));
+                    return c;
+                }
             }
         }
         return null;

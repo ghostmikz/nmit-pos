@@ -59,4 +59,6 @@ public class Product implements Serializable {
 
     public int getLowStockAlert()                      { return lowStockAlert; }
     public void setLowStockAlert(int lowStockAlert)    { this.lowStockAlert = lowStockAlert; }
+
+    @Override public String toString() { return name; }
 }

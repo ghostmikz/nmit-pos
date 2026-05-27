@@ -3,24 +3,23 @@ package model;
 import java.io.Serializable;
 import java.math.BigDecimal;
 import java.util.List;
+import java.util.Map;
 
 public class Sale implements Serializable {
-    private static final long serialVersionUID = 1L;
+    private static final long serialVersionUID = 2L;
     private int id;
     private String receiptNumber;
     private int userId;
     private int paymentMethodId;
-    private Integer discountId;
     private BigDecimal subtotal;
-    private BigDecimal discountAmount;
     private BigDecimal total;
     private String notes;
     private boolean isRefunded;
     private String createdAt;
     private String cashierName;
     private String paymentMethod;
-    private String discountName;
     private List<SaleItem> items;
+    private List<Map<String, Object>> payments;
 
     public Sale() {}
 
@@ -36,14 +35,8 @@ public class Sale implements Serializable {
     public int getPaymentMethodId()                         { return paymentMethodId; }
     public void setPaymentMethodId(int paymentMethodId)     { this.paymentMethodId = paymentMethodId; }
 
-    public Integer getDiscountId()              { return discountId; }
-    public void setDiscountId(Integer discountId) { this.discountId = discountId; }
-
     public BigDecimal getSubtotal()                 { return subtotal; }
     public void setSubtotal(BigDecimal subtotal)    { this.subtotal = subtotal; }
-
-    public BigDecimal getDiscountAmount()                       { return discountAmount; }
-    public void setDiscountAmount(BigDecimal discountAmount)    { this.discountAmount = discountAmount; }
 
     public BigDecimal getTotal()                { return total; }
     public void setTotal(BigDecimal total)      { this.total = total; }
@@ -63,9 +56,9 @@ public class Sale implements Serializable {
     public String getPaymentMethod()                     { return paymentMethod; }
     public void setPaymentMethod(String paymentMethod)   { this.paymentMethod = paymentMethod; }
 
-    public String getDiscountName()                      { return discountName; }
-    public void setDiscountName(String discountName)     { this.discountName = discountName; }
-
     public List<SaleItem> getItems()                { return items; }
     public void setItems(List<SaleItem> items)      { this.items = items; }
+
+    public List<Map<String, Object>> getPayments()              { return payments; }
+    public void setPayments(List<Map<String, Object>> payments) { this.payments = payments; }
 }

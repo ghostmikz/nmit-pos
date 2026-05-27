@@ -10,9 +10,11 @@ import java.util.Map;
 
 public class ProductHandler {
 
+    private static final ProductDAO DAO = new ProductDAO();
+
     public static Response getAll(Request req, User user) {
         try {
-            return Response.ok(new ProductDAO().findAll());
+            return Response.ok(DAO.findAll());
         } catch (Exception e) {
             return Response.error(e.getMessage());
         }
@@ -23,7 +25,7 @@ public class ProductHandler {
             return Response.error("Access denied");
         try {
             Product p = (Product) req.getData();
-            int id = new ProductDAO().create(p);
+            int id = DAO.create(p);
             return Response.ok(id);
         } catch (Exception e) {
             return Response.error(e.getMessage());
@@ -35,7 +37,7 @@ public class ProductHandler {
             return Response.error("Access denied");
         try {
             Product p = (Product) req.getData();
-            new ProductDAO().update(p);
+            DAO.update(p);
             return Response.ok("Updated");
         } catch (Exception e) {
             return Response.error(e.getMessage());
@@ -49,7 +51,7 @@ public class ProductHandler {
         try {
             Map<String, Object> data = (Map<String, Object>) req.getData();
             int productId = ((Number) data.get("productId")).intValue();
-            new ProductDAO().delete(productId);
+            DAO.delete(productId);
             return Response.ok("Deleted");
         } catch (Exception e) {
             return Response.error(e.getMessage());
@@ -61,7 +63,7 @@ public class ProductHandler {
         try {
             Map<String, Object> data = (Map<String, Object>) req.getData();
             int productId = ((Number) data.get("productId")).intValue();
-            byte[] bytes = new ProductDAO().getImage(productId);
+            byte[] bytes = DAO.getImage(productId);
             if (bytes == null) return Response.ok(null);
             return Response.ok(Base64.getEncoder().encodeToString(bytes));
         } catch (Exception e) {
@@ -77,7 +79,7 @@ public class ProductHandler {
             Map<String, Object> data = (Map<String, Object>) req.getData();
             int productId = ((Number) data.get("productId")).intValue();
             String base64  = (String) data.get("image");
-            new ProductDAO().updateImage(productId, Base64.getDecoder().decode(base64));
+            DAO.updateImage(productId, Base64.getDecoder().decode(base64));
             return Response.ok("Image updated");
         } catch (Exception e) {
             return Response.error(e.getMessage());
@@ -92,7 +94,7 @@ public class ProductHandler {
             Map<String, Object> data = (Map<String, Object>) req.getData();
             int productId = ((Number) data.get("productId")).intValue();
             int quantity  = ((Number) data.get("quantity")).intValue();
-            new ProductDAO().updateStock(productId, quantity);
+            DAO.updateStock(productId, quantity);
             return Response.ok("Stock updated");
         } catch (Exception e) {
             return Response.error(e.getMessage());

@@ -13,11 +13,12 @@ public class SaleItem implements Serializable {
 
     public SaleItem() {}
 
-    public SaleItem(int productId, int quantity, BigDecimal unitPrice) {
-        this.productId = productId;
-        this.quantity = quantity;
-        this.unitPrice = unitPrice;
-        this.subtotal = unitPrice.multiply(BigDecimal.valueOf(quantity));
+    public SaleItem(int productId, String productName, int quantity, BigDecimal unitPrice) {
+        this.productId   = productId;
+        this.productName = productName;
+        this.quantity    = quantity;
+        this.unitPrice   = unitPrice;
+        this.subtotal    = unitPrice.multiply(BigDecimal.valueOf(quantity));
     }
 
     public int getProductId()                   { return productId; }
@@ -26,8 +27,8 @@ public class SaleItem implements Serializable {
     public String getProductName()                  { return productName; }
     public void setProductName(String productName)  { this.productName = productName; }
 
-    public int getQuantity()                    { return quantity; }
-    public void setQuantity(int quantity)       { this.quantity = quantity; }
+    public int getQuantity()              { return quantity; }
+    public void setQuantity(int quantity) { this.quantity = quantity; this.subtotal = unitPrice.multiply(BigDecimal.valueOf(quantity)); }
 
     public BigDecimal getUnitPrice()                { return unitPrice; }
     public void setUnitPrice(BigDecimal unitPrice)  { this.unitPrice = unitPrice; }

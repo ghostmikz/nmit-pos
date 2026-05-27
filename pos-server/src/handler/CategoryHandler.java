@@ -10,9 +10,11 @@ import java.util.Map;
 
 public class CategoryHandler {
 
+    private static final CategoryDAO DAO = new CategoryDAO();
+
     public static Response getAll(Request req, User user) {
         try {
-            return Response.ok(new CategoryDAO().findAll());
+            return Response.ok(DAO.findAll());
         } catch (Exception e) {
             return Response.error(e.getMessage());
         }
@@ -26,7 +28,7 @@ public class CategoryHandler {
             Map<String, Object> data = (Map<String, Object>) req.getData();
             String name = (String) data.get("name");
             if (name == null || name.isBlank()) return Response.error("Name is required");
-            Category created = new CategoryDAO().add(name.trim());
+            Category created = DAO.add(name.trim());
             return Response.ok(created);
         } catch (Exception e) {
             return Response.error(e.getMessage());
@@ -42,7 +44,7 @@ public class CategoryHandler {
             int id      = ((Number) data.get("id")).intValue();
             String name = (String) data.get("name");
             if (name == null || name.isBlank()) return Response.error("Name is required");
-            new CategoryDAO().update(id, name.trim());
+            DAO.update(id, name.trim());
             return Response.ok("Updated");
         } catch (Exception e) {
             return Response.error(e.getMessage());
@@ -56,7 +58,7 @@ public class CategoryHandler {
         try {
             Map<String, Object> data = (Map<String, Object>) req.getData();
             int id = ((Number) data.get("id")).intValue();
-            new CategoryDAO().delete(id);
+            DAO.delete(id);
             return Response.ok("Deleted");
         } catch (Exception e) {
             return Response.error(e.getMessage());

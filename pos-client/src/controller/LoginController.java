@@ -54,10 +54,10 @@ public class LoginController {
                         new MainController(main, user);
                         main.setVisible(true);
                     } else {
-                        view.showError(res.getMessage());
+                        view.showError(I18n.t("login.error.failed"));
                     }
                 } catch (Exception ex) {
-                    view.showError(ex.getMessage());
+                    view.showError(I18n.t("login.error.connection"));
                 }
             }
         }.execute();

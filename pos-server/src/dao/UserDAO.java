@@ -1,7 +1,10 @@
 package dao;
 
 import model.User;
-import java.sql.*;
+import java.sql.CallableStatement;
+import java.sql.ResultSet;
+import java.sql.SQLException;
+import java.sql.Statement;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -19,9 +22,8 @@ public class UserDAO {
 
     public List<User> findAll() throws SQLException {
         List<User> list = new ArrayList<>();
-        String sql = "SELECT id, username, password_hash, full_name, role, is_active FROM users ORDER BY role, full_name";
-        try (Statement st = DatabaseConnection.getInstance().createStatement();
-             ResultSet rs = st.executeQuery(sql)) {
+        try (CallableStatement cs = DatabaseConnection.getInstance().prepareCall("CALL sp_get_users()");
+             ResultSet rs = cs.executeQuery()) {
             while (rs.next()) list.add(mapRow(rs));
         }
         return list;
@@ -34,11 +36,9 @@ public class UserDAO {
             cs.setString(3, u.getFullName());
             cs.setString(4, u.getRole());
             cs.setObject(5, u.getCreatedBy());
-            cs.execute();
-        }
-        try (Statement st = DatabaseConnection.getInstance().createStatement();
-             ResultSet rs = st.executeQuery("SELECT LAST_INSERT_ID()")) {
-            return rs.next() ? rs.getInt(1) : -1;
+            try (ResultSet rs = cs.executeQuery()) {
+                return rs.next() ? rs.getInt("user_id") : -1;
+            }
         }
     }
 

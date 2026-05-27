@@ -5,11 +5,16 @@ import i18n.LanguageListener;
 import model.User;
 import view.panels.*;
 
+import static view.AppColors.SCROLL_THUMB;
+import static view.AppColors.SCROLL_THUMB_HV;
+import static view.AppColors.SURFACE;
+
 import javax.imageio.ImageIO;
 import javax.swing.*;
 import javax.swing.border.*;
 import javax.swing.plaf.basic.BasicScrollBarUI;
 import java.awt.*;
+import java.awt.event.*;
 import java.awt.geom.AffineTransform;
 import java.awt.image.BufferedImage;
 import java.net.URL;
@@ -22,41 +27,26 @@ public class MainFrame extends JFrame implements LanguageListener {
     private JPanel     contentArea;
     private CardLayout cardLayout;
 
-    // Sidebar nav buttons — kept so we can relabel them on language change
     private JButton posBtn, inventoryBtn, reportsBtn, dashboardBtn, usersBtn, settingsBtn, logoutBtn;
     private JLabel  roleLabel;
 
     private final List<LanguageListener> panelListeners = new ArrayList<>();
     private Runnable logoutListener;
 
-    public MainFrame(User user) {
-        this.user = user;
-        setTitle(I18n.t("app.title") + " — " + user.getFullName());
-        setDefaultCloseOperation(EXIT_ON_CLOSE);
-        setUndecorated(true);
-        setExtendedState(JFrame.MAXIMIZED_BOTH);
-        setContentPane(buildUI());
-        I18n.addListener(this);
-    }
+    // ── palette ───────────────────────────────────────────────────────────────
+    private static final Color SIDEBAR         = new Color(0xb31b1b);
+    private static final Color NAV_FG          = new Color(0xFFCDD2);
+    private static final Color HOVER_BG        = new Color(255, 255, 255, 22);
+    private static final Color LOGOUT_FG       = new Color(0xFFABAB);
+    private static final Color USER_CARD_TINT  = new Color(0, 0, 0, 45);
+    private static final Color AVATAR_FILL     = new Color(0xcc2e2e);
+    private static final Color NAV_ACTIVE_BG   = new Color(255, 255, 255, 38);
+    private static final Color NAV_ACTIVE_PILL = new Color(255, 255, 255, 220);
+    private static final Color SEP_LINE        = new Color(255, 255, 255, 30);
+    private static final Color WIN_BTN_DIM     = new Color(255, 255, 255, 140);
+    // SCROLL_THUMB, SCROLL_THUMB_HV — from AppColors (static import above)
 
-    @Override
-    public void onLanguageChanged() {
-        setTitle(I18n.t("app.title") + " — " + user.getFullName());
-        roleLabel.setText(roleName(user.getRole()));
-        posBtn.setText(I18n.t("nav.pos"));
-        if (inventoryBtn != null) inventoryBtn.setText(I18n.t("nav.inventory"));
-        if (reportsBtn   != null) reportsBtn.setText(I18n.t("nav.reports"));
-        if (dashboardBtn != null) dashboardBtn.setText(I18n.t("nav.dashboard"));
-        if (usersBtn     != null) usersBtn.setText(I18n.t("nav.users"));
-        settingsBtn.setText(I18n.t("nav.settings"));
-        logoutBtn.setText(I18n.t("nav.logout"));
-        for (LanguageListener l : panelListeners) l.onLanguageChanged();
-    }
-
-    private static final Color SIDEBAR  = new Color(0x9b2a2a);
-    private static final Color NAV_ACT  = new Color(0x7a1a1a);
-    private static final Color NAV_FG   = new Color(0xF5C6C6);
-
+    // ── icons ─────────────────────────────────────────────────────────────────
     private static final ImageIcon IC_LOGO;
     private static final ImageIcon IC_POS;
     private static final ImageIcon IC_INVENTORY;
@@ -77,112 +67,113 @@ public class MainFrame extends JFrame implements LanguageListener {
         IC_LOGOUT    = assetSq("/assets/icons/logout.png",    18);
     }
 
+    public MainFrame(User user) {
+        this.user = user;
+        setTitle(I18n.t("app.title") + " — " + user.getFullName());
+        setDefaultCloseOperation(EXIT_ON_CLOSE);
+        setUndecorated(true);
+        setExtendedState(JFrame.MAXIMIZED_BOTH);
+        setContentPane(buildUI());
+        I18n.addListener(this);
+    }
+
+    @Override
+    public void onLanguageChanged() {
+        setTitle(I18n.t("app.title") + " — " + user.getFullName());
+        if (roleLabel    != null) roleLabel.setText(roleName(user.getRole()));
+        if (posBtn       != null) posBtn.setText(I18n.t("nav.pos"));
+        if (inventoryBtn != null) inventoryBtn.setText(I18n.t("nav.inventory"));
+        if (reportsBtn   != null) reportsBtn.setText(I18n.t("nav.reports"));
+        if (dashboardBtn != null) dashboardBtn.setText(I18n.t("nav.dashboard"));
+        if (usersBtn     != null) usersBtn.setText(I18n.t("nav.users"));
+        if (settingsBtn  != null) settingsBtn.setText(I18n.t("nav.settings"));
+        if (logoutBtn    != null) logoutBtn.setText(I18n.t("nav.logout"));
+        for (LanguageListener l : panelListeners) l.onLanguageChanged();
+    }
+
+    // ── layout ────────────────────────────────────────────────────────────────
     private JPanel buildUI() {
         JPanel root = new JPanel(new BorderLayout());
         root.add(buildTitleBar(), BorderLayout.NORTH);
-        root.add(buildSidebar(), BorderLayout.WEST);
-        root.add(buildContent(), BorderLayout.CENTER);
+        root.add(buildSidebar(),  BorderLayout.WEST);
+        root.add(buildContent(),  BorderLayout.CENTER);
         return root;
     }
 
+    // ── title bar (full-width, close/min on right) ────────────────────────────
     private JPanel buildTitleBar() {
         JPanel bar = new JPanel(new BorderLayout());
         bar.setBackground(SIDEBAR);
-        bar.setPreferredSize(new Dimension(0, 42));
+        bar.setPreferredSize(new Dimension(0, 40));
 
-        JPanel btns = new JPanel(new FlowLayout(FlowLayout.RIGHT, 12, 10));
-        btns.setOpaque(false);
-        btns.add(winBtn("−", e -> setState(ICONIFIED)));
-        btns.add(winBtn("×", e -> dispatchEvent(
-                new java.awt.event.WindowEvent(this, java.awt.event.WindowEvent.WINDOW_CLOSING))));
-        bar.add(btns, BorderLayout.EAST);
+        JPanel winRow = new JPanel(new FlowLayout(FlowLayout.RIGHT, 12, 6));
+        winRow.setOpaque(false);
+        winRow.add(winBtn("−", e -> setState(ICONIFIED)));
+        winRow.add(winBtn("×", e -> dispatchEvent(
+                new WindowEvent(this, WindowEvent.WINDOW_CLOSING))));
+        bar.add(winRow, BorderLayout.EAST);
         return bar;
     }
 
-    private JButton winBtn(String label, java.awt.event.ActionListener action) {
-        JButton b = new JButton(label);
-        b.setFont(new Font("Dialog", Font.PLAIN, 16));
-        b.setForeground(new Color(255, 255, 255, 160));
-        b.setContentAreaFilled(false);
-        b.setBorderPainted(false);
-        b.setFocusPainted(false);
-        b.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
-        b.addMouseListener(new java.awt.event.MouseAdapter() {
-            @Override public void mouseEntered(java.awt.event.MouseEvent e) { b.setForeground(Color.WHITE); }
-            @Override public void mouseExited(java.awt.event.MouseEvent e)  { b.setForeground(new Color(255, 255, 255, 160)); }
-        });
-        b.addActionListener(action);
-        return b;
-    }
-
+    // ── sidebar ───────────────────────────────────────────────────────────────
     private JPanel buildSidebar() {
         JPanel sidebar = new JPanel();
         sidebar.setLayout(new BoxLayout(sidebar, BoxLayout.Y_AXIS));
         sidebar.setBackground(SIDEBAR);
-        sidebar.setPreferredSize(new Dimension(220, 0));
+        sidebar.setPreferredSize(new Dimension(240, 0));
 
-        // ── Logo ──────────────────────────────────────────────────────────────
+        // ── logo — wrapped in LEFT_ALIGNMENT panel to avoid BoxLayout mismatch ──
+        sidebar.add(Box.createVerticalStrut(16));
+        JPanel logoWrap = new JPanel(new BorderLayout());
+        logoWrap.setOpaque(false);
+        logoWrap.setMaximumSize(new Dimension(240, 48));
+        logoWrap.setAlignmentX(Component.LEFT_ALIGNMENT);
+        if (IC_LOGO != null) logoWrap.add(new JLabel(IC_LOGO, SwingConstants.CENTER), BorderLayout.CENTER);
+        sidebar.add(logoWrap);
         sidebar.add(Box.createVerticalStrut(20));
 
-        JLabel logo = IC_LOGO != null ? new JLabel(IC_LOGO) : new JLabel("NMIT POS");
-        if (IC_LOGO == null) { logo.setFont(new Font("Dialog", Font.BOLD, 20)); logo.setForeground(Color.WHITE); }
-        logo.setHorizontalAlignment(SwingConstants.CENTER);
-        logo.setAlignmentX(LEFT_ALIGNMENT);
-        logo.setMaximumSize(new Dimension(220, 44));
-        sidebar.add(logo);
-
-        sidebar.add(Box.createVerticalStrut(8));
-
-        roleLabel = new JLabel(roleName(user.getRole()));
-        roleLabel.setFont(new Font("Dialog", Font.PLAIN, 12));
-        roleLabel.setForeground(NAV_FG);
-        roleLabel.setHorizontalAlignment(SwingConstants.CENTER);
-        roleLabel.setAlignmentX(LEFT_ALIGNMENT);
-        roleLabel.setMaximumSize(new Dimension(220, 20));
-        sidebar.add(roleLabel);
-
-        sidebar.add(Box.createVerticalStrut(16));
-        sidebar.add(separator());
-        sidebar.add(Box.createVerticalStrut(6));
-
-        // ── Main nav ──────────────────────────────────────────────────────────
+        // ── nav items ─────────────────────────────────────────────────────────
         posBtn = navBtn(I18n.t("nav.pos"), true, IC_POS);
         posBtn.addActionListener(e -> switchPanel("POS", posBtn, sidebar));
         sidebar.add(posBtn);
+        sidebar.add(Box.createVerticalStrut(2));
 
         if (user.isManager()) {
             inventoryBtn = navBtn(I18n.t("nav.inventory"), false, IC_INVENTORY);
             inventoryBtn.addActionListener(e -> switchPanel("INVENTORY", inventoryBtn, sidebar));
             sidebar.add(inventoryBtn);
+            sidebar.add(Box.createVerticalStrut(2));
 
             reportsBtn = navBtn(I18n.t("nav.reports"), false, IC_REPORTS);
             reportsBtn.addActionListener(e -> switchPanel("REPORTS", reportsBtn, sidebar));
             sidebar.add(reportsBtn);
+            sidebar.add(Box.createVerticalStrut(2));
 
             dashboardBtn = navBtn(I18n.t("nav.dashboard"), false, IC_DASHBOARD);
             dashboardBtn.addActionListener(e -> switchPanel("DASHBOARD", dashboardBtn, sidebar));
             sidebar.add(dashboardBtn);
+            sidebar.add(Box.createVerticalStrut(2));
         }
 
         if (user.isAdmin()) {
             usersBtn = navBtn(I18n.t("nav.users"), false, IC_USERS);
             usersBtn.addActionListener(e -> switchPanel("USERS", usersBtn, sidebar));
             sidebar.add(usersBtn);
+            sidebar.add(Box.createVerticalStrut(2));
         }
 
-        // ── Bottom section ────────────────────────────────────────────────────
+        // ── bottom ────────────────────────────────────────────────────────────
         sidebar.add(Box.createVerticalGlue());
-        sidebar.add(separator());
+        sidebar.add(thinSep());
         sidebar.add(Box.createVerticalStrut(6));
 
         settingsBtn = navBtn(I18n.t("nav.settings"), false, IC_SETTINGS);
         settingsBtn.addActionListener(e -> new SettingsDialog(this).setVisible(true));
         sidebar.add(settingsBtn);
-
-        sidebar.add(Box.createVerticalStrut(4));
+        sidebar.add(Box.createVerticalStrut(2));
 
         logoutBtn = navBtn(I18n.t("nav.logout"), false, IC_LOGOUT);
-        logoutBtn.setForeground(new Color(0xF87171));
+        logoutBtn.setForeground(LOGOUT_FG);
         logoutBtn.addActionListener(e -> {
             int ok = JOptionPane.showConfirmDialog(this,
                     I18n.t("nav.logout") + "?", I18n.t("common.confirm"),
@@ -191,9 +182,63 @@ public class MainFrame extends JFrame implements LanguageListener {
                 logoutListener.run();
         });
         sidebar.add(logoutBtn);
-
-        sidebar.add(Box.createVerticalStrut(16));
+        sidebar.add(Box.createVerticalStrut(10));
+        sidebar.add(thinSep());
+        sidebar.add(buildUserCard());
+        sidebar.add(Box.createVerticalStrut(12));
         return sidebar;
+    }
+
+    private JPanel buildUserCard() {
+        JPanel card = new JPanel(new BorderLayout(12, 0)) {
+            @Override protected void paintComponent(Graphics g) {
+                Graphics2D g2 = (Graphics2D) g.create();
+                g2.setColor(USER_CARD_TINT);
+                g2.fillRect(0, 0, getWidth(), getHeight());
+                g2.dispose();
+            }
+        };
+        card.setOpaque(false);
+        card.setBorder(new EmptyBorder(12, 16, 12, 16));
+        card.setAlignmentX(LEFT_ALIGNMENT);
+        card.setMaximumSize(new Dimension(240, 68));
+
+        JLabel avatar = new JLabel(initials(user.getFullName()), SwingConstants.CENTER) {
+            @Override protected void paintComponent(Graphics g) {
+                Graphics2D g2 = (Graphics2D) g.create();
+                g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+                g2.setColor(AVATAR_FILL);
+                g2.fillOval(0, 0, getWidth(), getHeight());
+                g2.dispose();
+                super.paintComponent(g);
+            }
+        };
+        avatar.setFont(new Font("Dialog", Font.BOLD, 14));
+        avatar.setForeground(Color.WHITE);
+        avatar.setOpaque(false);
+        avatar.setPreferredSize(new Dimension(40, 40));
+
+        JPanel info = new JPanel();
+        info.setLayout(new BoxLayout(info, BoxLayout.Y_AXIS));
+        info.setOpaque(false);
+
+        JLabel nameLabel = new JLabel(user.getFullName());
+        nameLabel.setFont(new Font("Dialog", Font.BOLD, 13));
+        nameLabel.setForeground(Color.WHITE);
+        nameLabel.setAlignmentX(LEFT_ALIGNMENT);
+
+        roleLabel = new JLabel(roleName(user.getRole()));
+        roleLabel.setFont(new Font("Dialog", Font.PLAIN, 11));
+        roleLabel.setForeground(NAV_FG);
+        roleLabel.setAlignmentX(LEFT_ALIGNMENT);
+
+        info.add(nameLabel);
+        info.add(Box.createVerticalStrut(2));
+        info.add(roleLabel);
+
+        card.add(avatar, BorderLayout.WEST);
+        card.add(info,   BorderLayout.CENTER);
+        return card;
     }
 
     private JPanel buildContent() {
@@ -202,65 +247,118 @@ public class MainFrame extends JFrame implements LanguageListener {
         return contentArea;
     }
 
-    // ── Public view API (called by MainController) ────────────────────────────
-
+    // ── public API ────────────────────────────────────────────────────────────
     public void addPanel(JPanel panel, String key) {
         contentArea.add(panel, key);
         if (panel instanceof LanguageListener ll) panelListeners.add(ll);
     }
 
-    public void showPanel(String key) {
-        cardLayout.show(contentArea, key);
-    }
-
-    public void setLogoutListener(Runnable listener) {
-        this.logoutListener = listener;
-    }
+    public void showPanel(String key)                    { cardLayout.show(contentArea, key); }
+    public void setLogoutListener(Runnable listener)     { this.logoutListener = listener; }
 
     public void close() {
         I18n.removeListener(this);
         dispose();
     }
 
+    // ── nav switching ─────────────────────────────────────────────────────────
     private void switchPanel(String key, JButton active, JPanel sidebar) {
         cardLayout.show(contentArea, key);
         for (Component c : sidebar.getComponents()) {
             if (c instanceof JButton b) {
                 boolean sel = b == active;
-                b.setBackground(sel ? NAV_ACT : SIDEBAR);
-                if (!b.getForeground().equals(new Color(0xF87171)))
+                b.putClientProperty("active", sel);
+                if (!LOGOUT_FG.equals(b.getForeground()))
                     b.setForeground(sel ? Color.WHITE : NAV_FG);
+                b.repaint();
             }
         }
     }
 
-    // ── Helpers ───────────────────────────────────────────────────────────────
-
+    // ── nav button with pill + hover ──────────────────────────────────────────
     private JButton navBtn(String label, boolean selected, ImageIcon icon) {
-        JButton btn = new JButton(label, icon);
+        JButton btn = new JButton(label, icon) {
+            @Override protected void paintComponent(Graphics g) {
+                boolean active  = Boolean.TRUE.equals(getClientProperty("active"));
+                boolean hovered = getModel().isRollover();
+                if (active || hovered) {
+                    Graphics2D g2 = (Graphics2D) g.create();
+                    g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+                    g2.setColor(active ? NAV_ACTIVE_BG : HOVER_BG);
+                    g2.fillRoundRect(8, 4, getWidth() - 16, getHeight() - 8, 10, 10);
+                    if (active) {
+                        g2.setColor(NAV_ACTIVE_PILL);
+                        g2.fillRoundRect(0, 10, 3, getHeight() - 20, 3, 3);
+                    }
+                    g2.dispose();
+                }
+                super.paintComponent(g);
+            }
+        };
+        btn.putClientProperty("active", selected);
         btn.setFont(new Font("Dialog", Font.PLAIN, 14));
         btn.setForeground(selected ? Color.WHITE : NAV_FG);
-        btn.setBackground(selected ? NAV_ACT : SIDEBAR);
+        btn.setContentAreaFilled(false);
+        btn.setOpaque(false);
         btn.setBorderPainted(false);
         btn.setFocusPainted(false);
         btn.setHorizontalAlignment(SwingConstants.LEFT);
         btn.setHorizontalTextPosition(SwingConstants.RIGHT);
         btn.setIconTextGap(12);
-        btn.setBorder(new EmptyBorder(0, 18, 0, 0));
-        btn.setMaximumSize(new Dimension(220, 46));
-        btn.setPreferredSize(new Dimension(220, 46));
+        btn.setBorder(new EmptyBorder(0, 20, 0, 0));
+        btn.setMaximumSize(new Dimension(240, 44));
+        btn.setPreferredSize(new Dimension(240, 44));
         btn.setAlignmentX(LEFT_ALIGNMENT);
         btn.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
         return btn;
     }
 
-    private JSeparator separator() {
-        JSeparator sep = new JSeparator();
-        sep.setForeground(new Color(0xb53c3c));
-        sep.setMaximumSize(new Dimension(220, 1));
-        return sep;
+    private JButton winBtn(String label, ActionListener action) {
+        JButton b = new JButton(label);
+        b.setFont(new Font("Dialog", Font.PLAIN, 16));
+        b.setForeground(WIN_BTN_DIM);
+        b.setContentAreaFilled(false);
+        b.setBorderPainted(false);
+        b.setFocusPainted(false);
+        b.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
+        b.addMouseListener(new MouseAdapter() {
+            @Override public void mouseEntered(MouseEvent e) { b.setForeground(Color.WHITE); }
+            @Override public void mouseExited(MouseEvent e)  { b.setForeground(WIN_BTN_DIM); }
+        });
+        b.addActionListener(action);
+        return b;
     }
 
+    private JPanel thinSep() {
+        JPanel s = new JPanel() {
+            @Override protected void paintComponent(Graphics g) {
+                g.setColor(SEP_LINE);
+                g.fillRect(16, 0, getWidth() - 32, 1);
+            }
+        };
+        s.setOpaque(false);
+        s.setMaximumSize(new Dimension(240, 1));
+        s.setPreferredSize(new Dimension(240, 1));
+        s.setAlignmentX(LEFT_ALIGNMENT);
+        return s;
+    }
+
+    private String initials(String name) {
+        if (name == null || name.isBlank()) return "?";
+        String[] parts = name.trim().split("\\s+");
+        if (parts.length == 1) return parts[0].substring(0, Math.min(2, parts[0].length())).toUpperCase();
+        return (String.valueOf(parts[0].charAt(0)) + parts[parts.length - 1].charAt(0)).toUpperCase();
+    }
+
+    private String roleName(String role) {
+        return switch (role) {
+            case "admin"   -> I18n.t("users.role.admin");
+            case "manager" -> I18n.t("users.role.manager");
+            default        -> I18n.t("users.role.cashier");
+        };
+    }
+
+    // ── image utilities ───────────────────────────────────────────────────────
     public static ImageIcon assetH(String path, int targetH) {
         URL url = MainFrame.class.getResource(path);
         if (url == null) return null;
@@ -341,8 +439,8 @@ public class MainFrame extends JFrame implements LanguageListener {
         else            sb.setPreferredSize(new Dimension(6, 0));
         sb.setUI(new BasicScrollBarUI() {
             @Override protected void configureScrollBarColors() {
-                thumbColor = new Color(0xCBD5E1);
-                trackColor = new Color(0xF8FAFC);
+                thumbColor = SCROLL_THUMB;
+                trackColor = SURFACE;
             }
             @Override protected JButton createDecreaseButton(int o) { return noBtn(); }
             @Override protected JButton createIncreaseButton(int o) { return noBtn(); }
@@ -354,19 +452,11 @@ public class MainFrame extends JFrame implements LanguageListener {
                 if (r.isEmpty()) return;
                 Graphics2D g2 = (Graphics2D) g.create();
                 g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
-                g2.setColor(isThumbRollover() ? new Color(0x94A3B8) : new Color(0xCBD5E1));
+                g2.setColor(isThumbRollover() ? SCROLL_THUMB_HV : SCROLL_THUMB);
                 if (horizontal) g2.fillRoundRect(r.x + 2, r.y + 1, r.width - 4, r.height - 2, 6, 6);
                 else            g2.fillRoundRect(r.x + 1, r.y + 2, r.width - 2, r.height - 4, 6, 6);
                 g2.dispose();
             }
         });
-    }
-
-    private String roleName(String role) {
-        return switch (role) {
-            case "admin"   -> I18n.t("users.role.admin");
-            case "manager" -> I18n.t("users.role.manager");
-            default        -> I18n.t("users.role.cashier");
-        };
     }
 }

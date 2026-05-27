@@ -1,5 +1,7 @@
 package view.panels;
 
+import static view.AppColors.*;
+
 import i18n.I18n;
 import i18n.LanguageListener;
 import model.User;
@@ -29,15 +31,8 @@ public class UsersPanel extends JPanel implements LanguageListener {
     }
 
     // ── palette ───────────────────────────────────────────────────────────────
-    private static final Color ACCENT   = new Color(0x7a1a1a);
-    private static final Color BG       = new Color(0xF0F2F5);
-    private static final Color TXT      = new Color(0x1E293B);
-    private static final Color MUTED    = new Color(0x64748B);
     private static final Color SEP      = new Color(0xEEF0F3);
-    private static final Color GREEN    = new Color(0x16A34A);
-    private static final Color RED_CLR  = new Color(0xDC2626);
-    private static final Color GREEN_BG = new Color(0xDCFCE7);
-    private static final Color RED_BG   = new Color(0xFEE2E2);
+    private static final Color HINT_CLR = new Color(0xA0AABA);  // placeholder / disabled text
 
     private static final Color[] AVATAR_COLORS = {
         new Color(0x7C3AED), new Color(0x2563EB), new Color(0x059669),
@@ -118,13 +113,12 @@ public class UsersPanel extends JPanel implements LanguageListener {
 
     // ── top bar ───────────────────────────────────────────────────────────────
     private JPanel buildTopBar() {
-        JPanel bar = new JPanel(new BorderLayout(16, 0));
-        bar.setBackground(Color.WHITE);
-        bar.setBorder(BorderFactory.createCompoundBorder(
-            BorderFactory.createMatteBorder(0, 0, 1, 0, new Color(0xE8EAED)),
-            new EmptyBorder(16, 24, 16, 24)));
+        // ── title row ─────────────────────────────────────────────────────────
+        JPanel titleRow = new JPanel(new BorderLayout(16, 0));
+        titleRow.setBackground(Color.WHITE);
+        titleRow.setBorder(new EmptyBorder(20, PAD + 4, 0, PAD + 4));
 
-        JPanel left = new JPanel(new BorderLayout(0, 5));
+        JPanel left = new JPanel(new BorderLayout(0, 7));
         left.setOpaque(false);
 
         topTitle = new JLabel(I18n.t("users.title"));
@@ -133,9 +127,9 @@ public class UsersPanel extends JPanel implements LanguageListener {
 
         JPanel chips = new JPanel(new FlowLayout(FlowLayout.LEFT, 6, 0));
         chips.setOpaque(false);
-        statTotal    = chip("0", MUTED,    new Color(0xF1F5F9));
-        statActive   = chip("0", GREEN,    GREEN_BG);
-        statInactive = chip("0", RED_CLR,  RED_BG);
+        statTotal    = chip("0", MUTED,   new Color(0xF1F5F9));
+        statActive   = chip("0", GREEN,   GREEN_BG);
+        statInactive = chip("0", RED, RED_BG);
         chips.add(statTotal); chips.add(statActive); chips.add(statInactive);
 
         left.add(topTitle, BorderLayout.NORTH);
@@ -144,44 +138,13 @@ public class UsersPanel extends JPanel implements LanguageListener {
         addUserBtn = accentBtn(I18n.t("users.add"));
         addUserBtn.addActionListener(e -> openUserDialog(null));
 
-        bar.add(left,       BorderLayout.WEST);
-        bar.add(addUserBtn, BorderLayout.EAST);
-        return bar;
-    }
+        titleRow.add(left,       BorderLayout.WEST);
+        titleRow.add(addUserBtn, BorderLayout.EAST);
 
-    private void updateStats() {
-        if (statTotal == null) return;
-        long active   = allUsers.stream().filter(User::isActive).count();
-        long inactive = allUsers.size() - active;
-        statTotal   .setText(allUsers.size() + " " + I18n.t("users.stat.total"));
-        statActive  .setText(active           + " " + I18n.t("users.stat.active"));
-        statInactive.setText(inactive         + " " + I18n.t("users.stat.inactive"));
-    }
-
-    private JLabel chip(String text, Color fg, Color bg) {
-        JLabel l = new JLabel(text) {
-            @Override protected void paintComponent(Graphics g) {
-                Graphics2D g2 = (Graphics2D) g.create();
-                g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
-                g2.setColor(getBackground());
-                g2.fillRoundRect(0, 0, getWidth(), getHeight(), 20, 20);
-                g2.dispose();
-                super.paintComponent(g);
-            }
-            @Override public boolean isOpaque() { return false; }
-        };
-        l.setBackground(bg); l.setForeground(fg);
-        l.setFont(new Font("Dialog", Font.BOLD, 11));
-        l.setBorder(new EmptyBorder(3, 9, 3, 9));
-        return l;
-    }
-
-    // ── content ───────────────────────────────────────────────────────────────
-    private JPanel buildContent() {
-        // Search bar
-        JPanel filterBar = new JPanel(new BorderLayout());
-        filterBar.setBackground(BG);
-        filterBar.setBorder(new EmptyBorder(14, 24, 10, 24));
+        // ── search row ────────────────────────────────────────────────────────
+        JPanel searchRow = new JPanel(new BorderLayout());
+        searchRow.setBackground(Color.WHITE);
+        searchRow.setBorder(new EmptyBorder(14, PAD + 4, 16, PAD + 4));
 
         JPanel searchWrap = new JPanel(new BorderLayout(8, 0)) {
             @Override protected void paintComponent(Graphics g) {
@@ -189,7 +152,7 @@ public class UsersPanel extends JPanel implements LanguageListener {
                 g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
                 g2.setColor(Color.WHITE);
                 g2.fillRoundRect(0, 0, getWidth(), getHeight(), 8, 8);
-                g2.setColor(new Color(0xE2E8F0));
+                g2.setColor(BORDER);
                 g2.drawRoundRect(0, 0, getWidth()-1, getHeight()-1, 8, 8);
                 g2.dispose();
             }
@@ -224,9 +187,49 @@ public class UsersPanel extends JPanel implements LanguageListener {
 
         searchWrap.add(new JLabel(view.MainFrame.assetSq("/assets/icons/search.png", 14)), BorderLayout.WEST);
         searchWrap.add(searchField, BorderLayout.CENTER);
-        filterBar.add(searchWrap, BorderLayout.WEST);
+        searchRow.add(searchWrap, BorderLayout.WEST);
 
-        // Table
+        // ── assemble ──────────────────────────────────────────────────────────
+        JSeparator divider = new JSeparator();
+        divider.setForeground(new Color(0xE2E8F0));
+
+        JPanel wrap = new JPanel(new BorderLayout());
+        wrap.setBackground(Color.WHITE);
+        wrap.add(titleRow,  BorderLayout.NORTH);
+        wrap.add(searchRow, BorderLayout.CENTER);
+        wrap.add(divider,   BorderLayout.SOUTH);
+        return wrap;
+    }
+
+    private void updateStats() {
+        if (statTotal == null) return;
+        long active   = allUsers.stream().filter(User::isActive).count();
+        long inactive = allUsers.size() - active;
+        statTotal   .setText(allUsers.size() + " " + I18n.t("users.stat.total"));
+        statActive  .setText(active           + " " + I18n.t("users.stat.active"));
+        statInactive.setText(inactive         + " " + I18n.t("users.stat.inactive"));
+    }
+
+    private JLabel chip(String text, Color fg, Color bg) {
+        JLabel l = new JLabel(text) {
+            @Override protected void paintComponent(Graphics g) {
+                Graphics2D g2 = (Graphics2D) g.create();
+                g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+                g2.setColor(getBackground());
+                g2.fillRoundRect(0, 0, getWidth(), getHeight(), 20, 20);
+                g2.dispose();
+                super.paintComponent(g);
+            }
+            @Override public boolean isOpaque() { return false; }
+        };
+        l.setBackground(bg); l.setForeground(fg);
+        l.setFont(new Font("Dialog", Font.BOLD, 11));
+        l.setBorder(new EmptyBorder(3, 9, 3, 9));
+        return l;
+    }
+
+    // ── content ───────────────────────────────────────────────────────────────
+    private JPanel buildContent() {
         userListPanel = new JPanel();
         userListPanel.setLayout(new BoxLayout(userListPanel, BoxLayout.Y_AXIS));
         userListPanel.setBackground(Color.WHITE);
@@ -238,30 +241,23 @@ public class UsersPanel extends JPanel implements LanguageListener {
         view.MainFrame.modernScrollBar(scroll);
         scroll.getVerticalScrollBar().setUnitIncrement(18);
 
-        JPanel tableCard = new JPanel(new BorderLayout());
-        tableCard.setBackground(Color.WHITE);
-        tableCard.setBorder(BorderFactory.createCompoundBorder(
-            new EmptyBorder(0, 24, 16, 24),
-            BorderFactory.createLineBorder(new Color(0xE8EAED))));
+        JPanel tableCard = roundedCard(Color.WHITE, 12);
+        tableCard.setLayout(new BorderLayout());
         tableCard.add(buildColHeader(), BorderLayout.NORTH);
         tableCard.add(scroll,           BorderLayout.CENTER);
 
         toastLabel = new JLabel("", SwingConstants.CENTER);
         toastLabel.setFont(new Font("Dialog", Font.PLAIN, 12));
-        toastLabel.setForeground(new Color(0x1E293B));
-        toastLabel.setOpaque(true);
-        toastLabel.setBackground(new Color(0xF0FDF4));
-        toastLabel.setBorder(BorderFactory.createCompoundBorder(
-            new EmptyBorder(0, 24, 8, 24),
-            BorderFactory.createEmptyBorder(8, 16, 8, 16)));
+        toastLabel.setForeground(GREEN);
+        toastLabel.setOpaque(false);
         toastLabel.setVisible(false);
 
-        JPanel main = new JPanel(new BorderLayout());
-        main.setBackground(BG);
-        main.add(filterBar,  BorderLayout.NORTH);
-        main.add(tableCard,  BorderLayout.CENTER);
-        main.add(toastLabel, BorderLayout.SOUTH);
-        return main;
+        JPanel outer = new JPanel(new BorderLayout());
+        outer.setBackground(BG);
+        outer.setBorder(new EmptyBorder(16, 16, 16, 16));
+        outer.add(tableCard,  BorderLayout.CENTER);
+        outer.add(toastLabel, BorderLayout.SOUTH);
+        return outer;
     }
 
     // ── column header ─────────────────────────────────────────────────────────
@@ -283,7 +279,7 @@ public class UsersPanel extends JPanel implements LanguageListener {
     private JLabel colHdr(String text) {
         JLabel l = new JLabel(text.toUpperCase());
         l.setFont(new Font("Dialog", Font.BOLD, 10));
-        l.setForeground(new Color(0xA0AABA));
+        l.setForeground(HINT_CLR);
         l.setBorder(new EmptyBorder(0, PAD, 0, 0));
         return l;
     }
@@ -362,7 +358,7 @@ public class UsersPanel extends JPanel implements LanguageListener {
 
         JLabel selfLbl = new JLabel("you");
         selfLbl.setFont(new Font("Dialog", Font.PLAIN, 11));
-        selfLbl.setForeground(new Color(0xA0AABA));
+        selfLbl.setForeground(HINT_CLR);
 
         JPanel nameCol = new JPanel(null) {
             @Override public void doLayout() {
@@ -385,7 +381,7 @@ public class UsersPanel extends JPanel implements LanguageListener {
 
         // ── role ─────────────────────────────────────────────────────────────
         Color roleClr = switch (u.getRole() == null ? "" : u.getRole()) {
-            case "admin"   -> new Color(0x7a1a1a);
+            case "admin"   -> ACCENT;
             case "manager" -> new Color(0x1D4ED8);
             default        -> new Color(0x374151);
         };
@@ -401,14 +397,14 @@ public class UsersPanel extends JPanel implements LanguageListener {
             @Override protected void paintComponent(Graphics g) {
                 Graphics2D g2 = (Graphics2D) g.create();
                 g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
-                g2.setColor(active ? GREEN : RED_CLR);
+                g2.setColor(active ? GREEN : RED);
                 g2.fillOval(0, 0, getWidth(), getHeight());
                 g2.dispose();
             }
         };
         JLabel badgeLbl = new JLabel(active ? I18n.t("users.active") : I18n.t("users.inactive"));
         badgeLbl.setFont(new Font("Dialog", Font.PLAIN, 13));
-        badgeLbl.setForeground(active ? GREEN : RED_CLR);
+        badgeLbl.setForeground(active ? GREEN : RED);
 
         JPanel statusCol = new JPanel(null) {
             @Override public void doLayout() {
@@ -447,7 +443,7 @@ public class UsersPanel extends JPanel implements LanguageListener {
         row.add(actionsCol);
 
         MouseAdapter hover = new MouseAdapter() {
-            @Override public void mouseEntered(MouseEvent e) { row.setBackground(new Color(0xFAFAFB)); row.repaint(); }
+            @Override public void mouseEntered(MouseEvent e) { row.setBackground(ROW_HOVER); row.repaint(); }
             @Override public void mouseExited(MouseEvent e)  { row.setBackground(Color.WHITE);          row.repaint(); }
         };
         row.addMouseListener(hover);
@@ -500,7 +496,7 @@ public class UsersPanel extends JPanel implements LanguageListener {
             menu.add(toggleItem);
 
             menu.addSeparator();
-            JMenuItem deleteItem = menuItem(I18n.t("users.ctx.delete"), RED_CLR);
+            JMenuItem deleteItem = menuItem(I18n.t("users.ctx.delete"), RED);
             deleteItem.addActionListener(e -> confirmDelete(u));
             menu.add(deleteItem);
         }
@@ -549,7 +545,7 @@ public class UsersPanel extends JPanel implements LanguageListener {
             body.add(Box.createVerticalStrut(4));
             JLabel hint = new JLabel(I18n.t("users.form.password.hint"));
             hint.setFont(new Font("Dialog", Font.PLAIN, 10));
-            hint.setForeground(new Color(0xA0AABA));
+            hint.setForeground(HINT_CLR);
             hint.setAlignmentX(LEFT_ALIGNMENT);
             body.add(hint);
         }
@@ -612,25 +608,59 @@ public class UsersPanel extends JPanel implements LanguageListener {
 
     // ── dialog helpers ────────────────────────────────────────────────────────
     private JDialog makeDialog(String title) {
-        JDialog dlg = new JDialog(SwingUtilities.getWindowAncestor(this), title,
-            java.awt.Dialog.ModalityType.APPLICATION_MODAL);
+        JDialog dlg = new JDialog(SwingUtilities.getWindowAncestor(this), Dialog.ModalityType.APPLICATION_MODAL);
+        dlg.setUndecorated(true);
         dlg.setBackground(Color.WHITE);
         dlg.setLayout(new BorderLayout());
+        dlg.getRootPane().setBorder(BorderFactory.createLineBorder(new Color(0xCDD5E0)));
+
         JPanel hdr = new JPanel(new BorderLayout());
-        hdr.setBackground(Color.WHITE);
-        hdr.setBorder(BorderFactory.createCompoundBorder(
-            BorderFactory.createMatteBorder(0, 0, 1, 0, new Color(0xE8EAED)),
-            new EmptyBorder(16, 24, 14, 16)));
+        hdr.setBackground(SIDEBAR);
+        hdr.setPreferredSize(new Dimension(0, 40));
+
         JLabel t = new JLabel(title);
-        t.setFont(new Font("Dialog", Font.BOLD, 15));
-        t.setForeground(TXT);
-        JButton x = new JButton("×");
-        x.setFont(new Font("Dialog", Font.PLAIN, 18));
-        x.setForeground(MUTED);
-        x.setContentAreaFilled(false); x.setBorderPainted(false); x.setFocusPainted(false);
+        t.setFont(new Font("Dialog", Font.BOLD, 14));
+        t.setForeground(Color.WHITE);
+        t.setBorder(new EmptyBorder(0, 16, 0, 0));
+
+        JButton x = new JButton() {
+            @Override protected void paintComponent(Graphics g) {
+                Graphics2D g2 = (Graphics2D) g.create();
+                g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+                int cx = getWidth() / 2, cy = getHeight() / 2, r = 5;
+                g2.setColor(getModel().isRollover() ? Color.WHITE : new Color(255, 255, 255, 160));
+                g2.setStroke(new BasicStroke(2f, BasicStroke.CAP_ROUND, BasicStroke.JOIN_ROUND));
+                g2.drawLine(cx - r, cy - r, cx + r, cy + r);
+                g2.drawLine(cx + r, cy - r, cx - r, cy + r);
+                g2.dispose();
+            }
+            @Override public boolean isOpaque() { return false; }
+        };
+        x.setContentAreaFilled(false);
+        x.setBorderPainted(false);
+        x.setFocusPainted(false);
+        x.setRolloverEnabled(true);
+        x.setPreferredSize(new Dimension(32, 32));
         x.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
+        x.getModel().addChangeListener(e -> x.repaint());
         x.addActionListener(e -> dlg.dispose());
-        hdr.add(t, BorderLayout.WEST); hdr.add(x, BorderLayout.EAST);
+
+        final int[] drag = {0, 0};
+        hdr.addMouseListener(new MouseAdapter() {
+            @Override public void mousePressed(MouseEvent e) { drag[0] = e.getX(); drag[1] = e.getY(); }
+        });
+        hdr.addMouseMotionListener(new MouseMotionAdapter() {
+            @Override public void mouseDragged(MouseEvent e) {
+                Point p = dlg.getLocation();
+                dlg.setLocation(p.x + e.getX() - drag[0], p.y + e.getY() - drag[1]);
+            }
+        });
+
+        JPanel xWrap = new JPanel(new FlowLayout(FlowLayout.CENTER, 6, 4));
+        xWrap.setOpaque(false);
+        xWrap.add(x);
+        hdr.add(t,    BorderLayout.WEST);
+        hdr.add(xWrap, BorderLayout.EAST);
         dlg.add(hdr, BorderLayout.NORTH);
         return dlg;
     }
@@ -649,7 +679,7 @@ public class UsersPanel extends JPanel implements LanguageListener {
         p.setMaximumSize(new Dimension(Integer.MAX_VALUE, 68));
         JLabel l = new JLabel(label.toUpperCase());
         l.setFont(new Font("Dialog", Font.BOLD, 10));
-        l.setForeground(new Color(0xA0AABA));
+        l.setForeground(HINT_CLR);
         p.add(l, BorderLayout.NORTH); p.add(field, BorderLayout.CENTER);
         return p;
     }
@@ -694,7 +724,7 @@ public class UsersPanel extends JPanel implements LanguageListener {
                 Graphics2D g2 = (Graphics2D) g.create();
                 g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
                 if (getModel().isRollover() || getModel().isPressed()) {
-                    g2.setColor(new Color(0xF1F5F9));
+                    g2.setColor(CHIP_BG);
                     g2.fillRoundRect(0, 0, getWidth(), getHeight(), 6, 6);
                 }
                 g2.dispose();
@@ -713,9 +743,9 @@ public class UsersPanel extends JPanel implements LanguageListener {
         JTextField f = new JTextField(val) {
             @Override protected void paintComponent(Graphics g) {
                 Graphics2D g2 = (Graphics2D) g.create();
-                g2.setColor(new Color(0xF8FAFC));
+                g2.setColor(SURFACE);
                 g2.fillRoundRect(0, 0, getWidth(), getHeight(), 6, 6);
-                g2.setColor(new Color(0xE2E8F0));
+                g2.setColor(BORDER);
                 g2.drawRoundRect(0, 0, getWidth()-1, getHeight()-1, 6, 6);
                 g2.dispose();
                 super.paintComponent(g);
@@ -731,9 +761,9 @@ public class UsersPanel extends JPanel implements LanguageListener {
         JPasswordField f = new JPasswordField() {
             @Override protected void paintComponent(Graphics g) {
                 Graphics2D g2 = (Graphics2D) g.create();
-                g2.setColor(new Color(0xF8FAFC));
+                g2.setColor(SURFACE);
                 g2.fillRoundRect(0, 0, getWidth(), getHeight(), 6, 6);
-                g2.setColor(new Color(0xE2E8F0));
+                g2.setColor(BORDER);
                 g2.drawRoundRect(0, 0, getWidth()-1, getHeight()-1, 6, 6);
                 g2.dispose();
                 super.paintComponent(g);
@@ -743,6 +773,28 @@ public class UsersPanel extends JPanel implements LanguageListener {
         f.setFont(new Font("Dialog", Font.PLAIN, 13));
         f.setBorder(new EmptyBorder(9, 11, 9, 11));
         return f;
+    }
+
+    // ── rounded card ─────────────────────────────────────────────────────────
+    private static JPanel roundedCard(Color bg, int r) {
+        return new JPanel() {
+            { setOpaque(false); }
+            @Override public boolean isOpaque() { return false; }
+            @Override protected void paintComponent(Graphics g) {
+                Graphics2D g2 = (Graphics2D) g.create();
+                g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+                g2.setColor(bg);
+                g2.fillRoundRect(0, 0, getWidth(), getHeight(), r, r);
+                g2.dispose();
+            }
+            @Override protected void paintChildren(Graphics g) {
+                Graphics2D g2 = (Graphics2D) g.create();
+                g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+                g2.setClip(new java.awt.geom.RoundRectangle2D.Float(0, 0, getWidth(), getHeight(), r, r));
+                super.paintChildren(g2);
+                g2.dispose();
+            }
+        };
     }
 
     // ── utilities ─────────────────────────────────────────────────────────────

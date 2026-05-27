@@ -2,6 +2,7 @@ package server;
 
 import handler.CategoryHandler;
 import handler.LoginHandler;
+import handler.PaymentMethodHandler;
 import handler.ProductHandler;
 import handler.ReportHandler;
 import handler.SaleHandler;
@@ -77,7 +78,8 @@ public class ClientHandler implements Runnable {
                 case "UPDATE_USER"         -> UserHandler.update(req, user);
                 case "SET_USER_ACTIVE"     -> UserHandler.setActive(req, user);
                 case "DELETE_USER"         -> UserHandler.delete(req, user);
-                case "GET_REPORT"          -> ReportHandler.getSalesReport(req, user);
+                case "GET_REPORT"           -> ReportHandler.getSalesReport(req, user);
+                case "GET_PAYMENT_METHODS" -> PaymentMethodHandler.getAll(req, user);
                 case "GET_DASHBOARD"       -> ReportHandler.getDashboard(req, user);
                 default                    -> Response.error("Unknown action: " + action);
             };
