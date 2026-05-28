@@ -46,6 +46,12 @@ public class InventoryPanel extends JPanel implements LanguageListener {
     @FunctionalInterface public interface ImageLoader {
         void load(int productId, Consumer<String> callback);
     }
+    @FunctionalInterface public interface PaymentMethodAdder {
+        void add(String name, Runnable onSuccess);
+    }
+    @FunctionalInterface public interface PaymentMethodDeleter {
+        void delete(int id, String name, Runnable onSuccess, Consumer<String> onError);
+    }
 
     // ── Colors ────────────────────────────────────────────────────────────────
     private static final Color SEP         = new Color(0xF1F5F9);
@@ -80,11 +86,15 @@ public class InventoryPanel extends JPanel implements LanguageListener {
     private final List<Category> allCategories = new ArrayList<>();
     private final Map<Integer, Image> imageCache = new HashMap<>();
 
-    private ProductSaver    productSaver;
-    private ProductDeleter  productDeleter;
-    private CategorySaver   categorySaver;
-    private CategoryDeleter categoryDeleter;
-    private ImageLoader     imageLoader;
+    private ProductSaver          productSaver;
+    private ProductDeleter        productDeleter;
+    private CategorySaver         categorySaver;
+    private CategoryDeleter       categoryDeleter;
+    private ImageLoader           imageLoader;
+    private PaymentMethodAdder    paymentMethodAdder;
+    private PaymentMethodDeleter  paymentMethodDeleter;
+
+    private final List<Map<String, Object>> allPaymentMethods = new ArrayList<>();
 
     private int    selectedCatId = -1;
     private String searchQuery   = "";
@@ -93,6 +103,7 @@ public class InventoryPanel extends JPanel implements LanguageListener {
     private int    currentPage   = 1;
 
     // ── UI refs ───────────────────────────────────────────────────────────────
+    private JPanel     pmListPanel;
     private JLabel     topTitle;
     private JButton    addProdBtn;
     private JTextField catSearchField;
@@ -163,11 +174,19 @@ public class InventoryPanel extends JPanel implements LanguageListener {
         refreshList();
     }
 
-    public void setProductSaver(ProductSaver h)       { productSaver    = h; }
-    public void setProductDeleter(ProductDeleter h)   { productDeleter  = h; }
-    public void setCategorySaver(CategorySaver h)     { categorySaver   = h; }
-    public void setCategoryDeleter(CategoryDeleter h) { categoryDeleter = h; }
-    public void setImageLoader(ImageLoader h)         { imageLoader     = h; }
+    public void setProductSaver(ProductSaver h)                   { productSaver         = h; }
+    public void setProductDeleter(ProductDeleter h)               { productDeleter        = h; }
+    public void setCategorySaver(CategorySaver h)                 { categorySaver         = h; }
+    public void setCategoryDeleter(CategoryDeleter h)             { categoryDeleter       = h; }
+    public void setImageLoader(ImageLoader h)                     { imageLoader           = h; }
+    public void setPaymentMethodAdder(PaymentMethodAdder h)       { paymentMethodAdder    = h; }
+    public void setPaymentMethodDeleter(PaymentMethodDeleter h)   { paymentMethodDeleter  = h; }
+
+    public void setPaymentMethods(List<Map<String, Object>> methods) {
+        allPaymentMethods.clear();
+        if (methods != null) allPaymentMethods.addAll(methods);
+        rebuildPMList();
+    }
 
     public void showError(String msg) {
         JOptionPane.showMessageDialog(this, msg, I18n.t("common.error"), JOptionPane.ERROR_MESSAGE);
@@ -276,14 +295,14 @@ public class InventoryPanel extends JPanel implements LanguageListener {
         catScroll.getVerticalScrollBar().setUnitIncrement(16);
 
         // New category footer
-        JPanel footer = new JPanel(new BorderLayout());
-        footer.setBackground(Color.WHITE);
-        footer.setBorder(BorderFactory.createCompoundBorder(
+        JPanel catFooter = new JPanel(new BorderLayout());
+        catFooter.setBackground(Color.WHITE);
+        catFooter.setBorder(BorderFactory.createCompoundBorder(
             BorderFactory.createMatteBorder(1, 0, 0, 0, new Color(0xE2E8F0)),
-            new EmptyBorder(10, 10, 12, 10)));
+            new EmptyBorder(8, 10, 10, 10)));
         JButton newCat = pill(I18n.t("inventory.cat.new"), -999, false);
         newCat.addActionListener(e -> openCategoryDialog(null));
-        footer.add(newCat);
+        catFooter.add(newCat);
 
         JPanel top = new JPanel(new BorderLayout());
         top.setOpaque(false);
@@ -291,7 +310,16 @@ public class InventoryPanel extends JPanel implements LanguageListener {
         top.add(searchPad, BorderLayout.CENTER);
         panel.add(top,      BorderLayout.NORTH);
         panel.add(catScroll,BorderLayout.CENTER);
-        panel.add(footer,   BorderLayout.SOUTH);
+
+        if (user.isManager()) {
+            JPanel bottomSection = new JPanel(new BorderLayout());
+            bottomSection.setBackground(Color.WHITE);
+            bottomSection.add(catFooter,           BorderLayout.NORTH);
+            bottomSection.add(buildPMSection(),    BorderLayout.CENTER);
+            panel.add(bottomSection, BorderLayout.SOUTH);
+        } else {
+            panel.add(catFooter, BorderLayout.SOUTH);
+        }
         return panel;
     }
 
@@ -379,6 +407,156 @@ public class InventoryPanel extends JPanel implements LanguageListener {
         del.addActionListener(e -> confirmDeleteCat(cat));
         m.add(edit); m.addSeparator(); m.add(del);
         m.show(src, x, y);
+    }
+
+    // ── Payment Methods section (manager/admin only) ──────────────────────────
+    private JPanel buildPMSection() {
+        JPanel section = new JPanel(new BorderLayout());
+        section.setBackground(Color.WHITE);
+        section.setBorder(BorderFactory.createMatteBorder(1, 0, 0, 0, new Color(0xE2E8F0)));
+
+        // Header
+        JPanel pmHeader = new JPanel(new BorderLayout(0, 0));
+        pmHeader.setBackground(Color.WHITE);
+        pmHeader.setBorder(new EmptyBorder(10, 16, 6, 12));
+        JLabel pmTitle = new JLabel(I18n.t("inventory.pm.header"));
+        pmTitle.setFont(new Font("Dialog", Font.BOLD, 11));
+        pmTitle.setForeground(MUTED);
+
+        JButton addPMBtn = new JButton() {
+            @Override protected void paintComponent(Graphics g) {
+                Graphics2D g2 = (Graphics2D) g.create();
+                g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+                g2.setColor(BORDER);
+                g2.fillRoundRect(0, 0, getWidth(), getHeight(), 6, 6);
+                g2.setFont(getFont());
+                g2.setColor(MUTED);
+                FontMetrics fm = g2.getFontMetrics();
+                String s = "+";
+                g2.drawString(s, (getWidth()-fm.stringWidth(s))/2, (getHeight()+fm.getAscent()-fm.getDescent())/2);
+                g2.dispose();
+            }
+            @Override public boolean isOpaque() { return false; }
+        };
+        addPMBtn.setFont(new Font("Dialog", Font.BOLD, 16));
+        addPMBtn.setPreferredSize(new Dimension(26, 26));
+        addPMBtn.setBorderPainted(false);
+        addPMBtn.setFocusPainted(false);
+        addPMBtn.setContentAreaFilled(false);
+        addPMBtn.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
+        addPMBtn.addActionListener(e -> openAddPMDialog());
+        pmHeader.add(pmTitle,  BorderLayout.WEST);
+        pmHeader.add(addPMBtn, BorderLayout.EAST);
+
+        pmListPanel = new JPanel();
+        pmListPanel.setLayout(new BoxLayout(pmListPanel, BoxLayout.Y_AXIS));
+        pmListPanel.setBackground(Color.WHITE);
+        pmListPanel.setBorder(new EmptyBorder(0, 8, 10, 8));
+
+        section.add(pmHeader,   BorderLayout.NORTH);
+        section.add(pmListPanel, BorderLayout.CENTER);
+        return section;
+    }
+
+    private void rebuildPMList() {
+        if (pmListPanel == null) return;
+        pmListPanel.removeAll();
+        for (Map<String, Object> m : allPaymentMethods) {
+            int    id   = ((Number) m.get("id")).intValue();
+            String name = (String) m.get("name");
+            pmListPanel.add(pmItem(id, name));
+        }
+        if (allPaymentMethods.isEmpty()) {
+            JLabel empty = new JLabel("—");
+            empty.setFont(new Font("Dialog", Font.PLAIN, 12));
+            empty.setForeground(MUTED);
+            empty.setBorder(new EmptyBorder(4, 8, 4, 8));
+            empty.setAlignmentX(LEFT_ALIGNMENT);
+            pmListPanel.add(empty);
+        }
+        pmListPanel.revalidate();
+        pmListPanel.repaint();
+    }
+
+    private JPanel pmItem(int id, String name) {
+        JPanel item = new JPanel(new BorderLayout(4, 0));
+        item.setOpaque(false);
+        item.setBorder(new EmptyBorder(3, 8, 3, 4));
+        item.setMaximumSize(new Dimension(Integer.MAX_VALUE, 28));
+        item.setAlignmentX(LEFT_ALIGNMENT);
+
+        JLabel nameLbl = new JLabel(name);
+        nameLbl.setFont(new Font("Dialog", Font.PLAIN, 12));
+        nameLbl.setForeground(TXT);
+
+        JButton delBtn = new JButton("x") {
+            @Override protected void paintComponent(Graphics g) {
+                Graphics2D g2 = (Graphics2D) g.create();
+                g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+                g2.setColor(getModel().isRollover()
+                    ? new Color(RED.getRed(), RED.getGreen(), RED.getBlue(), 40) : new Color(0, 0, 0, 0));
+                g2.fillRoundRect(0, 0, getWidth(), getHeight(), 4, 4);
+                g2.setColor(getModel().isRollover() ? RED : MUTED);
+                g2.setFont(new Font("Dialog", Font.BOLD, 10));
+                FontMetrics fm = g2.getFontMetrics();
+                String s = "x";
+                g2.drawString(s, (getWidth()-fm.stringWidth(s))/2, (getHeight()+fm.getAscent()-fm.getDescent())/2);
+                g2.dispose();
+            }
+            @Override public boolean isOpaque() { return false; }
+        };
+        delBtn.setPreferredSize(new Dimension(20, 20));
+        delBtn.setBorderPainted(false);
+        delBtn.setFocusPainted(false);
+        delBtn.setContentAreaFilled(false);
+        delBtn.setRolloverEnabled(true);
+        delBtn.getModel().addChangeListener(e -> delBtn.repaint());
+        delBtn.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
+        delBtn.addActionListener(e -> confirmDeletePM(id, name));
+
+        item.add(nameLbl, BorderLayout.CENTER);
+        item.add(delBtn,  BorderLayout.EAST);
+        return item;
+    }
+
+    private void openAddPMDialog() {
+        JDialog dlg = makeDialog(I18n.t("inventory.pm.add"));
+        JTextField fName = styledField("");
+
+        JPanel body = new JPanel();
+        body.setLayout(new BoxLayout(body, BoxLayout.Y_AXIS));
+        body.setBackground(Color.WHITE);
+        body.setBorder(new EmptyBorder(20, 24, 16, 24));
+        body.add(formField(I18n.t("inventory.pm.form.name"), fName));
+
+        JButton cancel = ghostBtn(I18n.t("common.cancel"));
+        cancel.addActionListener(e -> dlg.dispose());
+        JButton save = navBtn(I18n.t("common.save"), ACCENT, Color.WHITE);
+        save.addActionListener(e -> {
+            String name = fName.getText().trim();
+            if (name.isEmpty()) { fName.requestFocus(); return; }
+            if (paymentMethodAdder != null) {
+                dlg.dispose();
+                paymentMethodAdder.add(name, () -> showToast(I18n.t("inventory.pm.toast.added")));
+            }
+        });
+
+        dlg.add(body, BorderLayout.CENTER);
+        dlg.add(dialogFooter(cancel, save), BorderLayout.SOUTH);
+        dlg.setPreferredSize(new Dimension(320, 170));
+        dlg.pack();
+        dlg.setLocationRelativeTo(this);
+        dlg.setVisible(true);
+    }
+
+    private void confirmDeletePM(int id, String name) {
+        int ok = JOptionPane.showConfirmDialog(this,
+            MessageFormat.format(I18n.t("inventory.pm.confirm.delete"), name),
+            I18n.t("inventory.ctx.delete"), JOptionPane.YES_NO_OPTION, JOptionPane.WARNING_MESSAGE);
+        if (ok == JOptionPane.YES_OPTION && paymentMethodDeleter != null)
+            paymentMethodDeleter.delete(id, name,
+                () -> showToast(I18n.t("inventory.pm.toast.deleted")),
+                this::showError);
     }
 
     // ── Right: product area ───────────────────────────────────────────────────

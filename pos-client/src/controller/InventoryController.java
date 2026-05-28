@@ -28,6 +28,8 @@ public class InventoryController {
         view.setCategorySaver(this::saveCategory);
         view.setCategoryDeleter(this::deleteCategory);
         view.setImageLoader(this::loadImage);
+        view.setPaymentMethodAdder(this::addPaymentMethod);
+        view.setPaymentMethodDeleter(this::deletePaymentMethod);
         loadData();
         view.addHierarchyListener(e -> {
             if ((e.getChangeFlags() & java.awt.event.HierarchyEvent.SHOWING_CHANGED) != 0
@@ -39,8 +41,9 @@ public class InventoryController {
 
     private void loadData() {
         new SwingWorker<Void, Void>() {
-            List<Product>  products   = new ArrayList<>();
-            List<Category> categories = new ArrayList<>();
+            List<Product>             products        = new ArrayList<>();
+            List<Category>            categories      = new ArrayList<>();
+            List<Map<String, Object>> paymentMethods  = new ArrayList<>();
             String error;
 
             @Override protected Void doInBackground() {
@@ -61,6 +64,15 @@ public class InventoryController {
                         List<Product> p = (List<Product>) r2.getData();
                         products = p;
                     }
+
+                    if (user.isManager()) {
+                        Response r3 = SocketClient.getInstance().send("GET_PAYMENT_METHODS", user.getToken());
+                        if ("OK".equals(r3.getStatus()) && r3.getData() instanceof List) {
+                            @SuppressWarnings("unchecked")
+                            List<Map<String, Object>> pm = (List<Map<String, Object>>) r3.getData();
+                            paymentMethods = pm;
+                        }
+                    }
                 } catch (Exception e) {
                     error = e.getMessage();
                 }
@@ -71,6 +83,7 @@ public class InventoryController {
                 if (error != null) { view.showError(error); return; }
                 view.setCategories(categories);
                 view.setProducts(products);
+                if (user.isManager()) view.setPaymentMethods(paymentMethods);
             }
         }.execute();
     }
@@ -181,6 +194,50 @@ public class InventoryController {
                     }
                 } catch (Exception e) {
                     SwingUtilities.invokeLater(() -> view.showError(e.getMessage()));
+                }
+            }
+        }.execute();
+    }
+
+    private void addPaymentMethod(String name, Runnable onSuccess) {
+        Map<String, Object> data = new HashMap<>();
+        data.put("name", name);
+        new SwingWorker<Response, Void>() {
+            @Override protected Response doInBackground() throws Exception {
+                return SocketClient.getInstance().send("ADD_PAYMENT_METHOD", user.getToken(), data);
+            }
+            @Override protected void done() {
+                try {
+                    Response res = get();
+                    if ("OK".equals(res.getStatus())) {
+                        SwingUtilities.invokeLater(() -> { onSuccess.run(); loadData(); });
+                    } else {
+                        SwingUtilities.invokeLater(() -> view.showError(res.getMessage()));
+                    }
+                } catch (Exception e) {
+                    SwingUtilities.invokeLater(() -> view.showError(e.getMessage()));
+                }
+            }
+        }.execute();
+    }
+
+    private void deletePaymentMethod(int id, String name, Runnable onSuccess, Consumer<String> onError) {
+        Map<String, Object> data = new HashMap<>();
+        data.put("id", id);
+        new SwingWorker<Response, Void>() {
+            @Override protected Response doInBackground() throws Exception {
+                return SocketClient.getInstance().send("DELETE_PAYMENT_METHOD", user.getToken(), data);
+            }
+            @Override protected void done() {
+                try {
+                    Response res = get();
+                    if ("OK".equals(res.getStatus())) {
+                        SwingUtilities.invokeLater(() -> { onSuccess.run(); loadData(); });
+                    } else {
+                        SwingUtilities.invokeLater(() -> onError.accept(res.getMessage()));
+                    }
+                } catch (Exception e) {
+                    SwingUtilities.invokeLater(() -> onError.accept(e.getMessage()));
                 }
             }
         }.execute();

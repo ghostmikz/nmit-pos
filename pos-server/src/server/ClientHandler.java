@@ -79,8 +79,10 @@ public class ClientHandler implements Runnable {
                 case "SET_USER_ACTIVE"     -> UserHandler.setActive(req, user);
                 case "DELETE_USER"         -> UserHandler.delete(req, user);
                 case "GET_REPORT"           -> ReportHandler.getSalesReport(req, user);
-                case "GET_PAYMENT_METHODS" -> PaymentMethodHandler.getAll(req, user);
-                case "GET_DASHBOARD"       -> ReportHandler.getDashboard(req, user);
+                case "GET_PAYMENT_METHODS"    -> PaymentMethodHandler.getAll(req, user);
+                case "ADD_PAYMENT_METHOD"     -> PaymentMethodHandler.add(req, user);
+                case "DELETE_PAYMENT_METHOD"  -> PaymentMethodHandler.delete(req, user);
+                case "GET_DASHBOARD"          -> ReportHandler.getDashboard(req, user);
                 default                    -> Response.error("Unknown action: " + action);
             };
         } catch (Exception e) {

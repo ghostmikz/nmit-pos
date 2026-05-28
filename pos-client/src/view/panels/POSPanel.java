@@ -770,8 +770,10 @@ public class POSPanel extends JPanel implements LanguageListener {
 
     // ── Cart logic ────────────────────────────────────────────────────────────
 
+    private static final int MAX_HOLDS = 2;
+
     private void holdCart() {
-        if (cart.isEmpty()) return;
+        if (cart.isEmpty() || heldCarts.size() >= MAX_HOLDS) return;
         heldCarts.add(new ArrayList<>(cart));
         cart.clear();
         refreshCart();
@@ -799,7 +801,11 @@ public class POSPanel extends JPanel implements LanguageListener {
 
     private void rebuildHoldBar() {
         holdOrdersBar.removeAll();
-        JButton holdBtn = holdBarBtn(I18n.t("pos.hold"), ACCENT, Color.WHITE);
+        boolean atLimit = heldCarts.size() >= MAX_HOLDS;
+        JButton holdBtn = holdBarBtn(I18n.t("pos.hold"),
+                atLimit ? new Color(0xCBD5E1) : ACCENT,
+                atLimit ? new Color(0x94A3B8) : Color.WHITE);
+        holdBtn.setEnabled(!atLimit);
         holdBtn.addActionListener(e -> holdCart());
         holdOrdersBar.add(holdBtn);
         for (int i = 0; i < heldCarts.size(); i++) {
